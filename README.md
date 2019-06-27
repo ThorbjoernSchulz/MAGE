@@ -13,12 +13,20 @@ In the future I'm going to add
 - sound!
 - maybe even colors!
 
-Build with cmake or without (actually its easy, 
+Build and Run
+---
+Build with cmake
+ 
+```
+    mkdir build && cd build && cmake ..
+    make
+```
+or without (actually its easy, 
 just compile everything in src together, no fancy flags needed.).
 
 Run with
 ```
-    ./GameBoy --file your_game.gb
+    ./GameBoy --file your_game.gb [ --save your_safe_file ]
 ```
 
 or
@@ -26,3 +34,15 @@ or
     ./GameBoy --help
 ```
 for more information!
+
+Key Bindings
+---
+Current key bindings are 
+```
+    Arrow Keys / h, j, k, l        Directions
+    x, y                           A, B
+    Return / Space                 Start
+    Backspace / c                  Select
+```
+
+and are currently static. They will be configurable though in the future.

@@ -24,28 +24,28 @@ uint8_t get_joypad_state(bool direction) {
 uint8_t decode_keycode(SDL_Keycode keycode) {
   uint8_t key = 0;
   switch (keycode) {
-    case SDLK_UP:
+    case SDLK_UP: case SDLK_k:
       key = GAME_BOY_UP;
       break;
-    case SDLK_LEFT:
+    case SDLK_LEFT: case SDLK_h:
       key = GAME_BOY_LEFT;
       break;
-    case SDLK_DOWN:
+      case SDLK_DOWN: case SDLK_j:
       key = GAME_BOY_DOWN;
       break;
-    case SDLK_RIGHT:
+    case SDLK_RIGHT: case SDLK_l:
       key = GAME_BOY_RIGHT;
       break;
-    case SDLK_SPACE:
+    case SDLK_SPACE: case SDLK_RETURN:
       key = GAME_BOY_START;
       break;
-    case SDLK_y:
+    case SDLK_x:
       key = GAME_BOY_A;
       break;
-    case SDLK_x:
+    case SDLK_y:
       key = GAME_BOY_B;
       break;
-    case SDLK_BACKSPACE:
+    case SDLK_BACKSPACE: case SDLK_c:
       key = GAME_BOY_SELECT;
       break;
     default:

@@ -225,11 +225,6 @@ static void cartridge_mem_handler_init(cartridge_t *c) {
 static void cartridge_print_header(cartridge_header_t *header) {
   printf("########################################\n");
   printf("TITLE: %15s\n", header->game_title);
-  printf("COLOR_GB:\t\t%d\n", header->color_gb);
-  printf("GB_OR_SGB:\t\t%d\n", header->gb_or_sgb);
-  printf("ROM_SIZE:\t\t%d\n", header->rom_size);
-  printf("RAM_SIZE:\t\t%d\n", header->ram_size);
-  printf("CART_TYPE:\t\t0x%x\n", header->cartridge_type);
   printf("########################################\n");
 }
 
