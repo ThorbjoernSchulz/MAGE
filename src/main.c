@@ -45,7 +45,7 @@ static int setup_options(int argc, char *argv[]) {
     switch (flg) {
       case 'h':
         usage(argv[0]);
-        return 0;
+        exit(0);
       case 'f':
         set_options.file_name = strdup(optarg);
         break;
@@ -62,7 +62,7 @@ static int setup_options(int argc, char *argv[]) {
     }
   }
 
-  if (!set_options.file_name[0]) return 1;
+  if (!set_options.file_name) return 1;
 
   return 0;
 }
