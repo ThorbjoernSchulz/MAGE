@@ -62,9 +62,10 @@ typedef struct game_boy_t {
   uint8_t vram[8 * 1024];
 } game_boy_t;
 
-void game_boy_insert_game(gb_t gb, const char *game_path) {
+void game_boy_insert_game(gb_t gb, const char *game_path,
+                                   const char *save_path) {
   if (gb->cartridge) cartridge_delete(gb->cartridge);
-  gb->cartridge = cartridge_new(game_path);
+  gb->cartridge = cartridge_new(game_path, save_path);
 
   mmu_t *mmu = gb->cpu.mmu;
   as_handle_t rom = mmu_map_memory(mmu, 0x0000, 0x8000);

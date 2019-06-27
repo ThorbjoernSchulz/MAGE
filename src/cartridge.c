@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <string.h>
 
 #import "cartridge.h"
 
@@ -27,6 +28,10 @@ typedef struct cartridge_mem_handler_t {
 
 typedef struct cartridge_t {
   cartridge_header_t *header;
+  const char *game_file_name;
+  const char *save_file_name;
+  char save_file_name_buffer[FILENAME_MAX];
+
   uint8_t *rom_memory;
   uint8_t *ram_memory;
 
@@ -45,9 +50,7 @@ static size_t cartridge_calculate_ram_size(uint8_t ram_size);
 #define lower_bank_no(cart) (uint8_t) ((cart)->selected_rom_bank & 0x1F)
 
 void cartridge_save_game(cartridge_t *cart) {
-  char filename[512] = {0};
-  snprintf(filename, sizeof(filename)-1, "%s.save", cart->header->game_title);
-  FILE * file = fopen(filename, "w");
+  FILE * file = fopen(cart->save_file_name, "w");
   if (!file) { die("fopen"); }
 
   size_t size = cartridge_calculate_ram_size(cart->header->ram_size);
@@ -57,10 +60,8 @@ void cartridge_save_game(cartridge_t *cart) {
 }
 
 void cartridge_load_game(cartridge_t *cart) {
-  char filename[512] = {0};
-  snprintf(filename, sizeof(filename)-1, "%s.save", cart->header->game_title);
-  FILE * file = fopen(filename, "r");
-  if (!file) { perror("fopen"); return; }
+  FILE * file = fopen(cart->save_file_name, "r");
+  if (!file) { perror("Save game could not be loaded"); return; }
 
   size_t size = cartridge_calculate_ram_size(cart->header->ram_size);
   fread(cart->ram_memory, size, 1, file);
@@ -273,12 +274,28 @@ static uint8_t *cartridge_allocate_ram(uint8_t ram_size) {
   return malloc(cartridge_calculate_ram_size(ram_size));
 }
 
-cartridge_t *cartridge_new(const char *filename) {
+static void fill_save_game_name(cartridge_t *cart) {
+  size_t len = sizeof(cart->save_file_name_buffer) - 1;
+  char *end = stpncpy(cart->save_file_name_buffer, cart->game_file_name, len);
+  if (end - cart->save_file_name_buffer + 5 >= FILENAME_MAX)
+    die("The save file name is too long. Consider a relative path.");
+  strcpy(end, ".save");
+}
+
+cartridge_t *cartridge_new(const char *game_path, const char *save_path) {
   cartridge_t *cart = calloc(1, sizeof(cartridge_t));
   if (!cart) return 0;
 
-  uint8_t *memory = cartridge_load(filename);
+  uint8_t *memory = cartridge_load(game_path);
   if (!memory) { free(cart); return 0; }
+
+  cart->game_file_name = game_path;
+  if (save_path)
+    cart->save_file_name = save_path;
+  else {
+    fill_save_game_name(cart);
+    cart->save_file_name = cart->save_file_name_buffer;
+  }
 
   cartridge_header_t *header = (cartridge_header_t *)(memory + 0x100);
   /* TODO: remove this later */

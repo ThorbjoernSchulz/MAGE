@@ -8,8 +8,9 @@ It
 - is able to run games such as Links Awakening or Pokemon Red and Blue.
 
 In the future I'm going to add
-- Linkcable support (over TCP/IP) (so one can exchange Pokemon)
+- linkcable support (over TCP/IP) (so one can exchange Pokemon, yes!)
 - configurable settings
+- sound!
 - maybe even colors!
 
 Build with cmake or without (actually its easy, 

@@ -13,26 +13,29 @@ void die(const char *s) {
 #include "gameboy.h"
 #include <getopt.h>
 
-struct {
+static struct {
   char *file_name;
   char *boot_rom;
+  char *save_file;
 } set_options;
 
 static struct option options[] = {
     {"help", no_argument, 0, 'h'},
     {"file", required_argument, 0, 'f'},
     {"boot_rom", required_argument, 0, 'b'},
+    {"save", required_argument, 0, 's'},
     {NULL, 0, NULL, 0},
 };
 
-static const char *option_string = "h:f:b:";
+static const char *option_string = "h:f:b:s:";
 
 static void usage(const char *program_name) {
   fprintf(stderr, "Usage: %s --file FILE [OPTIONS]\n", program_name);
   fprintf(stderr, "Available Options:\n");
   fprintf(stderr, "\t-h,--help             Display this message.\n");
   fprintf(stderr, "\t-b,--boot_rom FILE    Enable boot screen.\n");
-  fprintf(stderr, "\t-f,--file FILE        Specify game file.\n");
+  fprintf(stderr, "\t-b,--boot_rom FILE    Enable boot screen.\n");
+  fprintf(stderr, "\t-s,--save FILE        Specify save game file.\n");
 }
 
 static int setup_options(int argc, char *argv[]) {
@@ -49,6 +52,9 @@ static int setup_options(int argc, char *argv[]) {
       case 'b':
         set_options.boot_rom = strdup(optarg);
         break;
+      case 's':
+        set_options.save_file = strdup(optarg);
+        break;
       case '?':
         return 1;
       default:
@@ -64,6 +70,7 @@ static int setup_options(int argc, char *argv[]) {
 static void options_delete(void) {
   free(set_options.file_name);
   free(set_options.boot_rom);
+  free(set_options.save_file);
 }
 
 int main(int argc, char *argv[]) {
@@ -103,7 +110,7 @@ int main(int argc, char *argv[]) {
 
   /* Ok, now that we have something to draw on, let us start the emulator */
   gb_t gb = game_boy_new(set_options.boot_rom, surface);
-  game_boy_insert_game(gb, set_options.file_name);
+  game_boy_insert_game(gb, set_options.file_name, set_options.save_file);
   game_boy_run(gb, surface, window);
 
   /* Clean everything up */
