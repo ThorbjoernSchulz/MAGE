@@ -33,7 +33,7 @@ static void usage(const char *program_name) {
   fprintf(stderr, "Usage: %s --file FILE [OPTIONS]\n", program_name);
   fprintf(stderr, "Available Options:\n");
   fprintf(stderr, "\t-h,--help             Display this message.\n");
-  fprintf(stderr, "\t-b,--boot_rom FILE    Enable boot screen.\n");
+  fprintf(stderr, "\t-f,--file FILE        Specify game file.\n");
   fprintf(stderr, "\t-b,--boot_rom FILE    Enable boot screen.\n");
   fprintf(stderr, "\t-s,--save FILE        Specify save game file.\n");
 }
