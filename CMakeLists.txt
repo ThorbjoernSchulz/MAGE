@@ -18,7 +18,8 @@ add_library(Interna STATIC
         src/memory_handler.h src/mem_handler.c
         src/video.h src/video.c
         src/input.c
-        src/cartridge.h src/cartridge.c)
+        src/cartridge.h src/cartridge.c
+        )
 
 add_executable(GameBoy src/main.c src/gameboy.h src/gameboy.c)
 target_link_libraries(GameBoy Interna SDL2)

@@ -13,8 +13,12 @@
 #include <time.h>
 #include <unistd.h>
 #include <assert.h>
+#include <math.h>
 
 void die(const char *s);
+bool handle_button_press(cpu_t *cpu);
+void set_up_vram(cpu_t *cpu, uint8_t *vram);
+static bool set_up_boot_rom(const char *boot_file);
 
 typedef struct game_boy_t game_boy_t;
 
@@ -23,32 +27,6 @@ static DEF_MEM_READ(null_read) { return 0; }
 
 static mem_handler_t *null_handler_create(void) {
   return mem_handler_create(null_read, default_rom_write);
-}
-
-typedef struct vram_handler {
-  mem_handler_t base;
-  uint8_t *video_ram;
-} vram_handler_t;
-
-static DEF_MEM_WRITE(vram_write) {
-  vram_handler_t *handler = (vram_handler_t *) this;
-  handler->video_ram[address & ~(0xE000)] = value;
-}
-
-static DEF_MEM_READ(vram_read) {
-  vram_handler_t *handler = (vram_handler_t *) this;
-  return handler->video_ram[address & ~(0xE000)];
-}
-
-mem_handler_t *vram_handler_create(uint8_t *vram) {
-  vram_handler_t *handler = calloc(1, (sizeof(vram_handler_t)));
-  if (!handler) return 0;
-
-  handler->base.write = vram_write;
-  handler->base.read = vram_read;
-  handler->base.destroy = mem_handler_default_destroy;
-  handler->video_ram = vram;
-  return (mem_handler_t *)handler;
 }
 
 /* # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -78,25 +56,6 @@ void game_boy_insert_game(gb_t gb, const char *game_path,
   if (!gb->cartridge) die("Cartridge could not be inserted");
 }
 
-void game_boy_delete(gb_t gb) {
-  cpu_delete(&(gb->cpu));
-  cartridge_delete(gb->cartridge);
-  free(gb);
-}
-
-static size_t get_file_size(FILE *file) {
-  fseek(file, 0, SEEK_END);
-  long size = ftell(file);
-
-  if (size < 0) {
-    perror("ftell");
-    abort();
-  }
-
-  fseek(file, 0, SEEK_SET);
-  return (size_t)size;
-}
-
 gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
   game_boy_t *game_boy = calloc(1, sizeof(game_boy_t));
   if (!game_boy) return 0;
@@ -116,29 +75,43 @@ gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
 
   cpu_init(&game_boy->cpu, mmu, lcd);
 
-  mem_handler_t *handler = vram_handler_create(game_boy->vram);
-  if (!handler) die("Could not allocate video_ram memory");
-  mmu_register_vram(mmu, handler);
+  set_up_vram(&game_boy->cpu, game_boy->vram);
 
-  if (boot_file) {
-    FILE *stream = fopen(boot_file, "r");
-    if (stream) {
-      size_t size = get_file_size(stream);
-      if (size == 256) {
-        load_boot_rom(stream);
-        fclose(stream);
-        enable_boot_rom(mmu);
-        return game_boy;
-      }
+  if (boot_file && set_up_boot_rom(boot_file))
+    enable_boot_rom(mmu);
+  else
+    game_boy_entry_after_boot(game_boy);
 
-      fprintf(stderr, "Boot-ROM needs to contain 256 bytes.\n");
-    }
-    else
-      perror(boot_file);
+  return game_boy;
+}
+
+static bool set_up_boot_rom(const char *boot_file) {
+  FILE *stream = fopen(boot_file, "r");
+  if (!stream) {
+    perror(boot_file);
+    return false;
   }
 
-  game_boy_entry_after_boot(game_boy);
-  return game_boy;
+  /* get file size */
+  fseek(stream, 0, SEEK_END);
+  long size = ftell(stream);
+
+  if (size < 0) {
+    perror("ftell");
+    fclose(stream);
+    return false;
+  }
+
+  fseek(stream, 0, SEEK_SET);
+
+  if (size != 256) {
+    fprintf(stderr, "Boot-ROM needs to contain 256 bytes.\n");
+    return false;
+  }
+
+  load_boot_rom(stream);
+  fclose(stream);
+  return true;
 }
 
 extern void mmu_init_after_boot(mmu_t *mmu);
@@ -161,9 +134,20 @@ void game_boy_entry_after_boot(gb_t gb) {
   mmu_init_after_boot(cpu->mmu);
 }
 
-bool handle_button_press(cpu_t *cpu);
+void game_boy_delete(gb_t gb) {
+    cpu_delete(&(gb->cpu));
+    cartridge_delete(gb->cartridge);
+    free(gb);
+}
+
+static void wait_until_next_frame(double time_spent) {
+    static const unsigned frame_rate = 60;
+    time_spent = fmax((1.0 / frame_rate) - time_spent, 0);
+    usleep((useconds_t) (time_spent * 1000000));
+}
 
 void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
+  /* if no cartridge is present, set all the related memory to 0 */
   if (!gb->cartridge) {
     mem_handler_t *handler = null_handler_create();
     if (!handler)
@@ -175,8 +159,8 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
 
   debugger_t *debugger = 0;
 
-  clock_t start_t, end_t;
-  start_t = clock();
+  /* start the main loop */
+  clock_t start_t = clock();
 
   while (true) {
     uint8_t cycles_spent = cpu_update_state(&gb->cpu, debugger);
@@ -189,19 +173,53 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
       break;
     }
 
+    /* draw to screen, scaled up */
     if (SDL_BlitScaled(data, NULL, SDL_GetWindowSurface(window), NULL)) {
       die(SDL_GetError());
     }
-
     SDL_UpdateWindowSurface(window);
-    end_t = clock();
-    double time_spent = (double) (end_t - start_t) / CLOCKS_PER_SEC;
-    time_spent = (1.0 / 60) - time_spent;
-    if (time_spent < 0) time_spent = 1;
-    usleep((useconds_t) (time_spent * 1000000));
+
+    wait_until_next_frame((double) (clock() - start_t) / CLOCKS_PER_SEC);
     start_t = clock();
   }
 
+  /* save the game before exit */
   cartridge_save_game(gb->cartridge);
+}
+
+/* # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+ *     VRAM
+ * # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # */
+
+typedef struct vram_handler {
+  mem_handler_t base;
+  uint8_t *video_ram;
+} vram_handler_t;
+
+static DEF_MEM_WRITE(vram_write) {
+  vram_handler_t *handler = (vram_handler_t *) this;
+  handler->video_ram[address & ~(0xE000)] = value;
+}
+
+static DEF_MEM_READ(vram_read) {
+  vram_handler_t *handler = (vram_handler_t *) this;
+  return handler->video_ram[address & ~(0xE000)];
+}
+
+mem_handler_t *vram_handler_create(uint8_t *vram) {
+  vram_handler_t *handler = calloc(1, (sizeof(vram_handler_t)));
+  if (!handler) return 0;
+
+  handler->base.write = vram_write;
+  handler->base.read = vram_read;
+  handler->base.destroy = mem_handler_default_destroy;
+  handler->video_ram = vram;
+  return (mem_handler_t *)handler;
+}
+
+void set_up_vram(cpu_t *cpu, uint8_t *vram) {
+  mem_handler_t *handler = vram_handler_create(vram);
+  if (!handler) die("Could not allocate video_ram memory");
+  mmu_register_vram(cpu->mmu, handler);
 }
 

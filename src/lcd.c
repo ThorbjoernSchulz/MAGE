@@ -360,7 +360,7 @@ static int next_sprite_pixel(sprite_px_it_t *it, bool x_flip, bool y_flip) {
     }
     else {
       if (--it->y == 0) {
-        it->y = 7     ;
+        it->y = 7;
         ++it->tile;
       }
     }
@@ -458,12 +458,9 @@ bool run_lcd(cpu_t *cpu, uint8_t cycles) {
 
   lcd->scan_line_counter += cycles;
   if (run_mode[get_mode(regs)](lcd, cpu)) {
-    if (window_enabled(regs)) {
-
-    }
-
     if (obj_enabled(lcd->registers))
       draw_sprites(lcd, lcd->display->pixels);
+
     update_screen = true;
   }
 

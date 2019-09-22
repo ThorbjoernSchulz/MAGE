@@ -367,13 +367,15 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
     }
 
-    case 0x38: /* JR C, r8 */
-    JR_IF_R8(cpu, carry_set(cpu));
+    case 0x38: /* JR C, r8 */ {
+      JR_IF_R8(cpu, carry_set(cpu));
       break;
+    }
 
-    case 0x39: /* ADD HL, SP */
-    ADD16(cpu, cpu->H, cpu->L, cpu->S, cpu->P);
+    case 0x39: /* ADD HL, SP */ {
+      ADD16(cpu, cpu->H, cpu->L, cpu->S, cpu->P);
       break;
+    }
 
     case 0x3A: /* LD A, (HL-) */ {
       load_short_value(cpu, cpu->A, cpu->H, cpu->L);
