@@ -268,6 +268,7 @@ static void draw_sprites(lcd_t *lcd, uint32_t *screen_buffer) {
   oam_entry_t *sprites[40] = {0};
   size_t active_sprites = 0;
 
+  /* which sprites are visible at all? */
   for (int i = 0; i < 40; ++i) {
     if (lcd->oam[i].pos_x == 0 || lcd->oam[i].pos_x >= 168 ||
         lcd->oam[i].pos_y == 0 || lcd->oam[i].pos_y >= 160)
@@ -276,7 +277,7 @@ static void draw_sprites(lcd_t *lcd, uint32_t *screen_buffer) {
     sprites[active_sprites++] = &lcd->oam[i];
   }
 
-  // todo: replace this with insertion sort?
+  /* sort sprites by priority (todo: replace this with some small_sort? */
   qsort((void*)sprites, active_sprites, sizeof(oam_entry_t *), sprite_cmp);
 
   lcd_regs_t *regs = lcd->registers;
@@ -305,8 +306,10 @@ static int sprite_cmp(const void *_a, const void *_b) {
 }
 
 static void draw_sprite(lcd_t *lcd, uint32_t *screen_buffer, oam_entry_t *sprite,
-                 uint32_t *palette0, uint32_t *palette1) {
+                        uint32_t *palette0, uint32_t *palette1) {
   lcd_regs_t *regs = lcd->registers;
+
+  /* first figure out how the sprite should be drawn */
   uint32_t *palette = sprite->flags & 0x10 ? palette1 : palette0;
 
   uint32_t bg_low_prio_color = to_sdl_color[(regs->bg_palette >> 0) & 0x3];
@@ -322,11 +325,13 @@ static void draw_sprite(lcd_t *lcd, uint32_t *screen_buffer, oam_entry_t *sprite
     it.y = sprite_height - 1;
   }
 
+  /* ok, let's draw it to the screen */
   int screen_y = (int)sprite->pos_y - 16;
 
   for (int y = 0; y < sprite_height; ++y, ++screen_y) {
     int screen_x = (int)sprite->pos_x - 8;
 
+    /* is the pixel visible ? */
     if (screen_y < 0 || screen_y >= 144) continue;
 
     for (int x = 0; x < 8; ++x, ++screen_x) {
@@ -352,17 +357,12 @@ static int next_sprite_pixel(sprite_px_it_t *it, bool x_flip, bool y_flip) {
   if (it->x == 8) {
     it->x = 0;
 
-    if (!y_flip) {
-      if (++it->y == 8) {
-        it->y = 0;
-        ++it->tile;
-      }
-    }
-    else {
-      if (--it->y == 0) {
-        it->y = 7;
-        ++it->tile;
-      }
+    /* little bit optimized: The y value increases or decreases depending on
+     * the value of y_flip */
+    it->y += (int)!y_flip - y_flip;
+    if (it->y == ((!y_flip) << 3)) {
+      it->y = (y_flip << 3) - y_flip;
+      ++it->tile;
     }
   }
 
