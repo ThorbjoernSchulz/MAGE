@@ -443,6 +443,11 @@ int (*const run_mode[])(lcd_t *lcd, cpu_t *bus) = {
 };
 
 typedef struct cpu cpu_t;
+/*
+ * Updates the LCD inner state. Returns true if the screen should be updated.
+ * .cpu         The game boys cpu.
+ * .cycles      The amount of cpu cycles passed since the last update.
+ */
 bool run_lcd(cpu_t *cpu, uint8_t cycles) {
   lcd_t *lcd = cpu->lcd;
   lcd_regs_t *regs = lcd->registers;

@@ -223,9 +223,7 @@ static void cartridge_mem_handler_init(cartridge_t *c) {
 }
 
 static void cartridge_print_header(cartridge_header_t *header) {
-  printf("########################################\n");
-  printf("TITLE: %15s\n", header->game_title);
-  printf("########################################\n");
+  fprintf(stderr, "Running: %15s\n", header->game_title);
 }
 
 static size_t get_file_size(FILE *file) {
