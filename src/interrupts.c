@@ -49,7 +49,10 @@ static void execute_interrupt(cpu_t *cpu, uint8_t interrupt) {
   cpu->interrupts_enabled = false;
 
   /* save program counter (if halted, push the location after the halt) */
-  if (cpu->halted) { ++cpu->pc; cpu->halted = false; }
+  if (cpu->halted) {
+    ++cpu->pc;
+    cpu->halted = false;
+  }
   push(cpu, high_byte(cpu->pc), low_byte(cpu->pc));
 
   call_interrupt_handler(cpu, interrupt);
@@ -58,7 +61,7 @@ static void execute_interrupt(cpu_t *cpu, uint8_t interrupt) {
 bool interrupts_ready(cpu_t *cpu) {
   mmu_t *mmu = cpu->mmu;
   return (mmu_get_interrupt_enable_reg(mmu) &
-          mmu_get_interrupt_flags_reg(mmu)  &
+          mmu_get_interrupt_flags_reg(mmu) &
           0x1F) != 0;
 }
 

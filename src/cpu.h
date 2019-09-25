@@ -1,7 +1,9 @@
 #pragma once
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
+
 typedef struct debugger debugger_t;
 
 typedef struct mmu_t mmu_t;
@@ -46,7 +48,9 @@ void cpu_init(cpu_t *this, mmu_t *mmu, lcd_t *lcd);
 void cpu_delete(cpu_t *cpu);
 
 uint8_t cpu_read(cpu_t *cpu, gb_address_t address);
+
 uint8_t cpu_fetch(cpu_t *cpu);
+
 void cpu_write(cpu_t *cpu, gb_address_t address, uint8_t value);
 
 uint8_t cpu_update_state(cpu_t *cpu, debugger_t *debugger);
@@ -56,6 +60,7 @@ gb_address_t concat_bytes(uint8_t reg1, uint8_t reg2);
 bool run_lcd(cpu_t *cpu, uint8_t cycles);
 
 void enable_boot_rom(mmu_t *mmu);
+
 void load_boot_rom(FILE *stream);
 
 void __test_write(cpu_t *cpu, gb_address_t address, uint8_t value);

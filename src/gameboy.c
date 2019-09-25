@@ -16,14 +16,19 @@
 #include <math.h>
 
 void die(const char *s);
+
 bool handle_button_press(cpu_t *cpu);
+
 void set_up_vram(cpu_t *cpu, uint8_t *vram);
+
 static bool set_up_boot_rom(const char *boot_file);
+
 static void wait_until_next_frame(double time_spent);
 
 typedef struct game_boy_t game_boy_t;
 
 static DEF_MEM_WRITE(default_rom_write) {}
+
 static DEF_MEM_READ(null_read) { return 0; }
 
 static mem_handler_t *null_handler_create(void) {
@@ -49,32 +54,32 @@ typedef struct game_boy_t {
  * .surface         The structure the LCD content is drawn on.
  */
 gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
-    game_boy_t *game_boy = calloc(1, sizeof(game_boy_t));
-    if (!game_boy) return 0;
+  game_boy_t *game_boy = calloc(1, sizeof(game_boy_t));
+  if (!game_boy) return 0;
 
-    mmu_t *mmu = mmu_new();
-    if (!mmu) {
-        free(game_boy);
-        return 0;
-    }
+  mmu_t *mmu = mmu_new();
+  if (!mmu) {
+    free(game_boy);
+    return 0;
+  }
 
-    lcd_t *lcd = lcd_new(mmu, game_boy->vram, surface);
-    if (!lcd) {
-        free(game_boy);
-        free(mmu);
-        return 0;
-    }
+  lcd_t *lcd = lcd_new(mmu, game_boy->vram, surface);
+  if (!lcd) {
+    free(game_boy);
+    free(mmu);
+    return 0;
+  }
 
-    cpu_init(&game_boy->cpu, mmu, lcd);
+  cpu_init(&game_boy->cpu, mmu, lcd);
 
-    set_up_vram(&game_boy->cpu, game_boy->vram);
+  set_up_vram(&game_boy->cpu, game_boy->vram);
 
-    if (boot_file && set_up_boot_rom(boot_file))
-        enable_boot_rom(mmu);
-    else
-        game_boy_entry_after_boot(game_boy);
+  if (boot_file && set_up_boot_rom(boot_file))
+    enable_boot_rom(mmu);
+  else
+    game_boy_entry_after_boot(game_boy);
 
-    return game_boy;
+  return game_boy;
 }
 
 /*
@@ -82,60 +87,61 @@ gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
  * .boot_file       The file containing the boot code
  */
 static bool set_up_boot_rom(const char *boot_file) {
-    FILE *stream = fopen(boot_file, "r");
-    if (!stream) {
-        perror(boot_file);
-        return false;
-    }
+  FILE *stream = fopen(boot_file, "r");
+  if (!stream) {
+    perror(boot_file);
+    return false;
+  }
 
-    /* get file size */
-    fseek(stream, 0, SEEK_END);
-    long size = ftell(stream);
+  /* get file size */
+  fseek(stream, 0, SEEK_END);
+  long size = ftell(stream);
 
-    if (size < 0) {
-        perror("ftell");
-        fclose(stream);
-        return false;
-    }
-
-    fseek(stream, 0, SEEK_SET);
-
-    if (size != 256) {
-        fprintf(stderr, "Boot-ROM needs to contain 256 bytes.\n");
-        return false;
-    }
-
-    load_boot_rom(stream);
+  if (size < 0) {
+    perror("ftell");
     fclose(stream);
-    return true;
+    return false;
+  }
+
+  fseek(stream, 0, SEEK_SET);
+
+  if (size != 256) {
+    fprintf(stderr, "Boot-ROM needs to contain 256 bytes.\n");
+    return false;
+  }
+
+  load_boot_rom(stream);
+  fclose(stream);
+  return true;
 }
 
 extern void mmu_init_after_boot(mmu_t *mmu);
+
 /*
  * Set the internal state of the game boy as it is expected after boot.
  * .gb      The game boy structure.
  */
 void game_boy_entry_after_boot(gb_t gb) {
-    cpu_t *cpu = &(gb->cpu);
+  cpu_t *cpu = &(gb->cpu);
 
-    cpu->pc = 0x100;
-    cpu->S = 0xFF;
-    cpu->P = 0xFE;
+  cpu->pc = 0x100;
+  cpu->S = 0xFF;
+  cpu->P = 0xFE;
 
-    cpu->A = 0x01;
-    cpu->F = 0xB0;
-    cpu->B = 0x00;
-    cpu->C = 0x13;
-    cpu->D = 0x00;
-    cpu->E = 0xD8;
-    cpu->H = 0x01;
-    cpu->L = 0x4D;
+  cpu->A = 0x01;
+  cpu->F = 0xB0;
+  cpu->B = 0x00;
+  cpu->C = 0x13;
+  cpu->D = 0x00;
+  cpu->E = 0xD8;
+  cpu->H = 0x01;
+  cpu->L = 0x4D;
 
-    mmu_init_after_boot(cpu->mmu);
+  mmu_init_after_boot(cpu->mmu);
 }
 
 void game_boy_insert_game(gb_t gb, const char *game_path,
-                                   const char *save_path) {
+                          const char *save_path) {
   if (gb->cartridge) cartridge_delete(gb->cartridge);
   gb->cartridge = cartridge_new(game_path, save_path);
 
@@ -199,15 +205,15 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
 }
 
 static void wait_until_next_frame(double time_spent) {
-    static const unsigned frame_rate = 60;
-    time_spent = fmax((1.0 / frame_rate) - time_spent, 0);
-    usleep((useconds_t) (time_spent * 1000000));
+  static const unsigned frame_rate = 60;
+  time_spent = fmax((1.0 / frame_rate) - time_spent, 0);
+  usleep((useconds_t) (time_spent * 1000000));
 }
 
 void game_boy_delete(gb_t gb) {
-    cpu_delete(&(gb->cpu));
-    cartridge_delete(gb->cartridge);
-    free(gb);
+  cpu_delete(&(gb->cpu));
+  cartridge_delete(gb->cartridge);
+  free(gb);
 }
 
 /* # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -237,7 +243,7 @@ mem_handler_t *vram_handler_create(uint8_t *vram) {
   handler->base.read = vram_read;
   handler->base.destroy = mem_handler_default_destroy;
   handler->video_ram = vram;
-  return (mem_handler_t *)handler;
+  return (mem_handler_t *) handler;
 }
 
 void set_up_vram(cpu_t *cpu, uint8_t *vram) {

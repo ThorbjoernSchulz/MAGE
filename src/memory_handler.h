@@ -1,4 +1,5 @@
 #pragma once
+
 #include <stdint.h>
 
 /*
@@ -22,8 +23,11 @@
 typedef uint16_t gb_address_t;
 
 typedef struct memory_handler mem_handler_t;
+
 typedef uint8_t (*mem_read_t)(mem_handler_t *, gb_address_t);
+
 typedef void (*mem_write_t)(mem_handler_t *, gb_address_t, uint8_t);
+
 typedef void (*destructor_t)(mem_handler_t *);
 
 #define DEF_MEM_DESTROY(name) void name(mem_handler_t *this)
@@ -39,8 +43,10 @@ struct memory_handler {
 };
 
 mem_handler_t *mem_handler_create(mem_read_t read, mem_write_t write);
+
 mem_handler_t *mem_handler_create_d(mem_read_t read, mem_write_t write,
                                     destructor_t d);
 
 DEF_MEM_DESTROY(mem_handler_default_destroy);
+
 DEF_MEM_DESTROY(mem_handler_stack_destroy);

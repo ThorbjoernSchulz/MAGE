@@ -1,4 +1,5 @@
 #pragma once
+
 #include "cpu.h"
 
 #define high_byte(n)  (uint8_t)(((n) >> 8) & 0xFF)
@@ -26,21 +27,33 @@
 #define zero_set(cpu) (uint8_t)(((cpu)->F & FLAG_ZERO) != 0)
 
 uint8_t inc(cpu_t *cpu, uint8_t value);
+
 uint8_t dec(cpu_t *cpu, uint8_t value);
 
 uint8_t adc8(cpu_t *cpu, uint8_t reg);
+
 uint8_t add8(cpu_t *cpu, uint8_t reg);
+
 uint16_t add16(cpu_t *cpu, uint8_t h1, uint8_t l1, uint8_t h2, uint8_t l2);
+
 uint16_t add16s(cpu_t *cpu, uint8_t h, uint8_t l, int8_t r);
+
 uint8_t sub8(cpu_t *cpu, uint8_t reg);
+
 uint8_t sbc8(cpu_t *cpu, uint8_t reg);
+
 uint8_t and8(cpu_t *cpu, uint8_t reg);
+
 uint8_t or8(cpu_t *cpu, uint8_t reg);
+
 uint8_t xor8(cpu_t *cpu, uint8_t reg);
 
 void rrca(cpu_t *cpu);
+
 void rra(cpu_t *cpu);
+
 void rlca(cpu_t *cpu);
+
 void rla(cpu_t *cpu);
 
 /* returns the clock cycles taken */
@@ -153,6 +166,7 @@ void jump(cpu_t *cpu, gb_address_t address);
  * +++++++++++++++++++++++++++++++++++++++++++++++
  */
 void push(cpu_t *cpu, uint8_t high, uint8_t low);
+
 uint16_t pop(cpu_t *cpu);
 
 #define PUSH(CPU, HIGH, LOW) push((CPU), (HIGH), (LOW))

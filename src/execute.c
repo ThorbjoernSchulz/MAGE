@@ -5,28 +5,30 @@
 #define is_halt(I)  I == 0x76
 
 uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction);
+
 void timer_update(cpu_t *cpu, uint8_t cycles);
+
 void div_update(cpu_t *cpu, uint8_t cycles);
 
 extern void die(const char *s);
 
 static const uint8_t instruction_duration[] = {
-  4, 12, 8, 8, 4, 4, 8, 4, 20, 8, 8, 8, 4, 4, 8, 4,
-  4, 12, 8, 8, 4, 4, 8, 4, 12, 8, 8, 8, 4, 4, 8, 4,
-  12, 12, 8, 8, 4, 4, 8, 4, 12, 8, 8, 8, 4, 4, 8, 4,
-  12, 12, 8, 8, 12, 12, 12, 4, 12, 8, 8, 8, 4, 4, 8,
-  4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
-  4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
-  4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
-  4, 8, 8, 8, 8, 8, 8, 4, 8, 4, 4, 4, 4, 4, 4, 8,
-  4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
-  4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
-  4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
-  4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
-  4, 20, 12, 16, 16, 24, 16, 8, 16, 20, 16, 16, 0, 24, 24,
-  8, 16, 20, 0, 12, 16, 24, 16, 8, 16, 20, 16, 16, 24, 8, 16,
-  12, 12, 8, 0, 0, 16, 8, 16, 16, 4, 16, 0, 0, 0, 8, 16,
-  12, 12, 8, 4, 0, 16, 8, 16, 12, 8, 16, 4, 0, 0, 8, 16
+    4, 12, 8, 8, 4, 4, 8, 4, 20, 8, 8, 8, 4, 4, 8, 4,
+    4, 12, 8, 8, 4, 4, 8, 4, 12, 8, 8, 8, 4, 4, 8, 4,
+    12, 12, 8, 8, 4, 4, 8, 4, 12, 8, 8, 8, 4, 4, 8, 4,
+    12, 12, 8, 8, 12, 12, 12, 4, 12, 8, 8, 8, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
+    4, 8, 8, 8, 8, 8, 8, 4, 8, 4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 8,
+    4, 20, 12, 16, 16, 24, 16, 8, 16, 20, 16, 16, 0, 24, 24,
+    8, 16, 20, 0, 12, 16, 24, 16, 8, 16, 20, 16, 16, 24, 8, 16,
+    12, 12, 8, 0, 0, 16, 8, 16, 16, 4, 16, 0, 0, 0, 8, 16,
+    12, 12, 8, 4, 0, 16, 8, 16, 12, 8, 16, 4, 0, 0, 8, 16
 };
 
 uint8_t cpu_update_state(cpu_t *cpu, debugger_t *debugger) {
@@ -53,6 +55,7 @@ uint8_t cpu_update_state(cpu_t *cpu, debugger_t *debugger) {
 }
 
 unsigned int sleep(unsigned int);
+
 void freeze(void) { while (1) { /* nothing to do */ sleep(5); }}
 
 uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
@@ -134,9 +137,10 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       /* TODO: Implement this */
       break;
 
-    case 0x11: /* LD DE, d16 */
+    case 0x11: /* LD DE, d16 */ {
       load_long_value(cpu, cpu->D, cpu->E);
       break;
+    }
 
     case 0x12: /* LD (DE), A */ {
       store_short_value(cpu, cpu->D, cpu->E, cpu->A);
@@ -165,13 +169,15 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
     }
 
-    case 0x18: /* JR r8 */
-    JR_R8(cpu);
+    case 0x18: /* JR r8 */ {
+      JR_R8(cpu);
       break;
+    }
 
-    case 0x19: /* ADD HL, DE */
-    ADD16(cpu, cpu->H, cpu->L, cpu->D, cpu->E);
+    case 0x19: /* ADD HL, DE */ {
+      ADD16(cpu, cpu->H, cpu->L, cpu->D, cpu->E);
       break;
+    }
 
     case 0x1A: /* LD A, (DE) */ {
       load_short_value(cpu, cpu->A, cpu->D, cpu->E);
@@ -1098,22 +1104,23 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
 
     case 0xE0: /* LDH (a8), A */ {
-      gb_address_t address = (gb_address_t)(0xFF00 + cpu_fetch(cpu));
+      gb_address_t address = (gb_address_t) (0xFF00 + cpu_fetch(cpu));
       cpu_write(cpu, address, cpu->A);
       break;
     }
 
     case 0xE1: /* POP HL */
-      POP(cpu, cpu->H, cpu->L);
+    POP(cpu, cpu->H, cpu->L);
       break;
 
     case 0xE2: /* LD (C), A */ {
-      gb_address_t address = (gb_address_t)(0xFF00 + cpu->C);
+      gb_address_t address = (gb_address_t) (0xFF00 + cpu->C);
       cpu_write(cpu, address, cpu->A);
       break;
     }
 
-    case 0xE3: case 0xE4: /* --- */
+    case 0xE3:
+    case 0xE4: /* --- */
       die("Instruction not implemented");
 
     case 0xE5: /* PUSH HL */
@@ -1121,11 +1128,11 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
 
     case 0xE6: /* AND d8 */
-      AND8(cpu, cpu_fetch(cpu));
+    AND8(cpu, cpu_fetch(cpu));
       break;
 
     case 0xE7: /* RST 20H */
-      RST(cpu, 0x20);
+    RST(cpu, 0x20);
       break;
 
     case 0xE8: /* ADD SP, r8 */ {
@@ -1147,30 +1154,32 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
     }
 
-    case 0xEB: case 0xEC: case 0xED: /* --- */
+    case 0xEB:
+    case 0xEC:
+    case 0xED: /* --- */
       die("Instruction not implemented");
 
     case 0xEE: /* XOR d8 */
-      XOR8(cpu, cpu_fetch(cpu));
+    XOR8(cpu, cpu_fetch(cpu));
       break;
 
     case 0xEF: /* RST 28H */
-      RST(cpu, 0x28);
+    RST(cpu, 0x28);
       break;
 
     case 0xF0: /* LDH A, (a8) */ {
-      gb_address_t address = (gb_address_t)(0xFF00 + cpu_fetch(cpu));
+      gb_address_t address = (gb_address_t) (0xFF00 + cpu_fetch(cpu));
       cpu->A = cpu_read(cpu, address);
       break;
     }
 
     case 0xF1: /* POP AF */
-      POP(cpu, cpu->A, cpu->F);
+    POP(cpu, cpu->A, cpu->F);
       cpu->F &= 0xF0;
       break;
 
     case 0xF2: /* LD A, (C)*/ {
-      gb_address_t address = (gb_address_t)(0xFF00 + cpu->C);
+      gb_address_t address = (gb_address_t) (0xFF00 + cpu->C);
       cpu->A = cpu_read(cpu, address);
       break;
     }
@@ -1187,11 +1196,11 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
 
     case 0xF6: /* OR d8 */
-      OR8(cpu, cpu_fetch(cpu));
+    OR8(cpu, cpu_fetch(cpu));
       break;
 
     case 0xF7: /* RST 30H */
-      RST(cpu, 0x30);
+    RST(cpu, 0x30);
       break;
 
     case 0xF8: /* LD HL, SP+r8 */ {
@@ -1221,15 +1230,16 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       cpu->ei_instruction_used = true;
       break;
 
-    case 0xFC: case 0xFD: /* --- */
+    case 0xFC:
+    case 0xFD: /* --- */
       die("Instruction not implemented");
 
     case 0xFE: /* CP d8 */
-      CP8(cpu, cpu_fetch(cpu));
+    CP8(cpu, cpu_fetch(cpu));
       break;
 
     case 0xFF: /* RST 38H */
-      RST(cpu, 0x38);
+    RST(cpu, 0x38);
       break;
 
     default:

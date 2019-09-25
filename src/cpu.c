@@ -2,9 +2,8 @@
 #include "mmu.h"
 
 extern void mmu_write(mmu_t *mmu, gb_address_t address, uint8_t value);
-extern uint8_t mmu_read(mmu_t *mmu, gb_address_t address);
 
-extern void die(const char *s);
+extern uint8_t mmu_read(mmu_t *mmu, gb_address_t address);
 
 void cpu_init(cpu_t *this, mmu_t *mmu, lcd_t *lcd) {
   this->mmu = mmu;

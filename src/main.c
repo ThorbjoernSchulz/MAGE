@@ -1,17 +1,18 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_timer.h>
+
+#include "gameboy.h"
+#include "logging.h"
 
 void die(const char *s) {
   fputs(s, stderr);
   abort();
 }
-
-#include "gameboy.h"
-#include <getopt.h>
 
 static struct {
   char *file_name;
@@ -20,11 +21,11 @@ static struct {
 } set_options;
 
 static struct option options[] = {
-    {"help", no_argument, 0, 'h'},
-    {"file", required_argument, 0, 'f'},
+    {"help",     no_argument,       0, 'h'},
+    {"file",     required_argument, 0, 'f'},
     {"boot_rom", required_argument, 0, 'b'},
-    {"save", required_argument, 0, 's'},
-    {NULL, 0, NULL, 0},
+    {"save",     required_argument, 0, 's'},
+    {NULL, 0, NULL,                    0},
 };
 
 static const char *option_string = "h:f:b:s:";
@@ -74,25 +75,32 @@ static void options_delete(void) {
 }
 
 int main(int argc, char *argv[]) {
-  if (setup_options(argc, argv)) { usage(argv[0]); return 1; }
+  logging_initialize();
+
+  if (setup_options(argc, argv)) {
+    usage(argv[0]);
+    return 1;
+  }
 
   /* Let's start up the visual interface */
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
-    die(SDL_GetError());
+    logging_error(SDL_GetError());
+    return 1;
   }
 
   SDL_Window *window = SDL_CreateWindow("GameBoy",
-      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 576, 0);
+                                        SDL_WINDOWPOS_CENTERED,
+                                        SDL_WINDOWPOS_CENTERED, 640, 576, 0);
   atexit(SDL_Quit);
 
-  if(!window) {
-    die(SDL_GetError());
+  if (!window) {
+    logging_error(SDL_GetError());
     return 1;
   }
 
   SDL_Surface *window_surface = SDL_GetWindowSurface(window);
   if (!window_surface) {
-    die(SDL_GetError());
+    logging_error(SDL_GetError());
     return 1;
   }
 
@@ -105,7 +113,8 @@ int main(int argc, char *argv[]) {
       window_surface->format->Amask);
 
   if (!surface) {
-    die(SDL_GetError());
+    logging_error(SDL_GetError());
+    return 1;
   }
 
   /* Ok, now that we have something to draw on, let us start the emulator */

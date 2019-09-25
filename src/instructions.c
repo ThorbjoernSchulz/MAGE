@@ -32,7 +32,7 @@ uint16_t add16(cpu_t *cpu, uint8_t h1, uint8_t l1, uint8_t h2, uint8_t l2) {
   if (half_carry16(operand1, operand2)) set_hcarry_flag(cpu);
   if (result & 0xFFFF0000) set_carry_flag(cpu);
 
-  operand1 = (uint16_t)(result & 0x0000FFFF);
+  operand1 = (uint16_t) (result & 0x0000FFFF);
   return operand1;
 }
 
@@ -126,7 +126,7 @@ uint8_t or8(cpu_t *cpu, uint8_t reg) {
 
 uint8_t xor8(cpu_t *cpu, uint8_t reg) {
   clear_flags(cpu);
-  uint8_t result = cpu->A ^ reg;
+  uint8_t result = cpu->A ^reg;
   if (!result) set_zero_flag(cpu);
   return result;
 }
@@ -248,7 +248,7 @@ static void sra(cpu_t *cpu, uint8_t *target) {
   clear_flags(cpu);
   uint8_t reg = *target;
 
-  uint8_t msb = reg & (uint8_t)0x80;
+  uint8_t msb = reg & (uint8_t) 0x80;
   if (reg & 0x1) set_carry_flag(cpu);
   reg >>= 1;
   reg |= msb;
@@ -260,7 +260,7 @@ static void sra(cpu_t *cpu, uint8_t *target) {
 static void swap(cpu_t *cpu, uint8_t *target) {
   clear_flags(cpu);
   uint8_t reg = *target;
-  reg = ((reg & (uint8_t)0xF0) >> 4) | ((reg & (uint8_t)0xF) << 4);
+  reg = ((reg & (uint8_t) 0xF0) >> 4) | ((reg & (uint8_t) 0xF) << 4);
   if (!reg) set_zero_flag(cpu);
   *target = reg;
 }
@@ -280,7 +280,8 @@ static void bitn(cpu_t *cpu, uint8_t bit, uint8_t target) {
   set_add_flag(cpu);
   set_hcarry_flag(cpu);
   if (target & (1 << bit)) unset_zero_flag(cpu);
-  else set_zero_flag(cpu);
+  else
+    set_zero_flag(cpu);
 }
 
 static void bit0(cpu_t *cpu, uint8_t *target) {
@@ -385,6 +386,7 @@ static void set7(cpu_t *cpu, uint8_t *target) {
 
 typedef struct cb_instruction {
   void (*instruction)(cpu_t *cpu, uint8_t *target);
+
   uint8_t *target;
   uint8_t clocks;
 } cb_inst_t;
@@ -398,9 +400,9 @@ static cb_inst_t cb_decoder(cpu_t *cpu, uint8_t byte) {
   };
 
   uint8_t instr_id = byte >> 3;
-  uint8_t register_ = byte & (uint8_t)7;
+  uint8_t register_ = byte & (uint8_t) 7;
 
-  cb_inst_t instruction = { .instruction = instructions[instr_id] };
+  cb_inst_t instruction = {.instruction = instructions[instr_id]};
 
   instruction.clocks = 8;
 
@@ -432,7 +434,8 @@ static cb_inst_t cb_decoder(cpu_t *cpu, uint8_t byte) {
       instruction.target = &cpu->A;
       break;
 
-    default: break;
+    default:
+      break;
   }
 
   return instruction;

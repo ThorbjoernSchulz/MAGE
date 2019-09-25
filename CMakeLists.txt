@@ -12,13 +12,15 @@ add_library(Interna STATIC
         src/cpu.h src/cpu.c
         src/instructions.h src/instructions.c
         src/timer.c
-        src/lcd.c
+        src/video/lcd.c
         src/mmu.h src/mmu.c
         src/interrupts.h src/interrupts.c
         src/memory_handler.h src/mem_handler.c
-        src/video.h src/video.c
+        src/video/video.h src/video/video.c
         src/input.c
         src/cartridge.h src/cartridge.c
+        src/logging.c
+        src/video/iterator.c
         )
 
 add_executable(GameBoy src/main.c src/gameboy.h src/gameboy.c)
