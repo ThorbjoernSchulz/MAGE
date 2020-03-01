@@ -28,7 +28,11 @@
 
 uint8_t inc(cpu_t *cpu, uint8_t value);
 
+void indirect_inc(cpu_t *cpu, gb_address_t address);
+
 uint8_t dec(cpu_t *cpu, uint8_t value);
+
+void indirect_dec(cpu_t *cpu, gb_address_t address);
 
 uint8_t adc8(cpu_t *cpu, uint8_t reg);
 
@@ -56,6 +60,8 @@ void rlca(cpu_t *cpu);
 
 void rla(cpu_t *cpu);
 
+void daa(cpu_t *cpu);
+
 /* returns the clock cycles taken */
 uint8_t cb_inst_execute(cpu_t *cpu, uint8_t byte);
 
@@ -66,41 +72,53 @@ uint8_t cb_inst_execute(cpu_t *cpu, uint8_t byte);
  * +++++++++++++++++++++++++++++++++++++++++++++++
  */
 
-#define store_short_value(CPU, HIGH, LOW, REG) {\
-  gb_address_t address = concat_bytes((HIGH), (LOW));\
-  cpu_write((CPU), address, (REG)); }
+#define store_short_value(CPU, HIGH, LOW, REG) {      \
+  gb_address_t address = concat_bytes((HIGH), (LOW)); \
+  cpu_write((CPU), address, (REG)); }                 \
 
-#define load_short_value(CPU, REG, HIGH, LOW) {\
-  gb_address_t address = concat_bytes((HIGH), (LOW));\
-  (REG) = cpu_read((CPU), address); }
+#define load_short_value(CPU, REG, HIGH, LOW) {       \
+  gb_address_t address = concat_bytes((HIGH), (LOW)); \
+  (REG) = cpu_read((CPU), address); }                 \
 
-#define store_long_value(CPU, HIGH, LOW) {\
-  uint8_t low = cpu_fetch((CPU));\
-  uint8_t high = cpu_fetch((CPU));\
-  gb_address_t address = concat_bytes(high, low);\
-  cpu_write((CPU), address, (LOW));\
-  cpu_write((CPU), ++address, (HIGH));}
+#define store_long_value(CPU, HIGH, LOW) {            \
+  uint8_t low = cpu_fetch((CPU));                     \
+  uint8_t high = cpu_fetch((CPU));                    \
+  gb_address_t address = concat_bytes(high, low);     \
+  cpu_write((CPU), address, (LOW));                   \
+  cpu_write((CPU), ++address, (HIGH));}               \
 
-#define load_long_value(CPU, HIGH, LOW) {\
-  (LOW) = cpu_fetch((CPU));\
-  (HIGH) = cpu_fetch((CPU));}
+#define load_long_value(CPU, HIGH, LOW) {             \
+  (LOW) = cpu_fetch((CPU));                           \
+  (HIGH) = cpu_fetch((CPU));}                         \
 
 /* +++++++++++++++++++++++++++++++++++++++++++++++
  * +              ARITHMETIC                     +
  * +++++++++++++++++++++++++++++++++++++++++++++++
  */
 
-#define INC(CPU, REG)   (REG) = inc((CPU), (REG))
+#define increment_short_value(CPU, REG)    (REG) = inc((CPU), (REG))
 
-#define INC2(HIGH, LOW)   int __result = concat_bytes((HIGH), (LOW));\
-                          ++__result;\
-                          (HIGH) = high_byte(__result); (LOW) = low_byte(__result);
+#define increment_long_value(HIGH, LOW)    int __result =                 \
+                                             concat_bytes((HIGH), (LOW)); \
+                                           ++__result;                    \
+                                           (HIGH) = high_byte(__result);  \
+                                           (LOW) = low_byte(__result);    \
 
-#define DEC(CPU, REG)   (REG) = dec((CPU), (REG))
+#define increment_indirect(CPU, HIGH, LOW) gb_address_t __address =       \
+                                             concat_bytes((HIGH), (LOW)); \
+                                           indirect_inc((CPU), __address);\
 
-#define DEC2(HIGH, LOW)   int __result = concat_bytes((HIGH), (LOW));\
-                          --__result;\
-                          (HIGH) = high_byte(__result); (LOW) = low_byte(__result);
+#define decrement_short_value(CPU, REG)    (REG) = dec((CPU), (REG))
+
+#define decrement_long_value(HIGH, LOW)    int __result =                 \
+                                             concat_bytes((HIGH), (LOW)); \
+                                           --__result;                    \
+                                           (HIGH) = high_byte(__result);  \
+                                           (LOW) = low_byte(__result);    \
+
+#define decrement_indirect(CPU, HIGH, LOW) gb_address_t __address =       \
+                                             concat_bytes((HIGH), (LOW)); \
+                                           indirect_dec((CPU), __address);\
 
 #define ADD16(CPU, REG1, REG2, REG3, REG4)  {\
   uint16_t result = add16((CPU), (REG1), (REG2), (REG3), (REG4));\

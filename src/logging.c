@@ -1,5 +1,7 @@
 #include "logging.h"
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 static FILE *log_file;
 
@@ -17,4 +19,8 @@ void logging_warning(const char *warning) {
 
 void logging_error(const char *error) {
   fprintf(log_file, "Error: %s\n", error);
+}
+
+void logging_std_error(void) {
+  logging_error(strerror(errno));
 }

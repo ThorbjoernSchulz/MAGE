@@ -14,6 +14,22 @@ uint8_t inc(cpu_t *cpu, uint8_t value) {
   return value;
 }
 
+void indirect_inc(cpu_t *cpu, gb_address_t address) {
+  bool carry_was_set = carry_set(cpu);
+  clear_flags(cpu);
+
+  uint8_t byte = cpu_read(cpu, address);
+
+  if ((byte & 0xF) == 0xF) set_hcarry_flag(cpu);
+
+  ++byte;
+
+  if (!byte) set_zero_flag(cpu);
+
+  cpu_write(cpu, address, byte);
+  if (carry_was_set) set_carry_flag(cpu);
+}
+
 uint8_t dec(cpu_t *cpu, uint8_t value) {
   cpu->F &= ~(FLAG_ZERO | FLAG_HCARRY);
   set_sub_flag(cpu);
@@ -21,6 +37,23 @@ uint8_t dec(cpu_t *cpu, uint8_t value) {
   --value;
   if (!value) set_zero_flag(cpu);
   return value;
+}
+
+void indirect_dec(cpu_t *cpu, gb_address_t address) {
+  bool carry_was_set = carry_set(cpu);
+  clear_flags(cpu);
+  set_sub_flag(cpu);
+
+  uint8_t byte = cpu_read(cpu, address);
+
+  if ((byte & 0xF) == 0) set_hcarry_flag(cpu);
+
+  --byte;
+
+  if (!byte) set_zero_flag(cpu);
+
+  cpu_write(cpu, address, byte);
+  if (carry_was_set) set_carry_flag(cpu);
 }
 
 uint16_t add16(cpu_t *cpu, uint8_t h1, uint8_t l1, uint8_t h2, uint8_t l2) {
@@ -274,6 +307,28 @@ static void srl(cpu_t *cpu, uint8_t *target) {
 
   if (!reg) set_zero_flag(cpu);
   *target = reg;
+}
+
+void daa(cpu_t *cpu) {
+  uint8_t correction = 0;
+  uint8_t flags = 0;
+
+  if (hcarry_set(cpu) || (add_set(cpu) && (cpu->A & 0xF) > 9)) {
+    correction |= 0x6;
+  }
+  if (carry_set(cpu) || (add_set(cpu) && cpu->A > 0x99)) {
+    correction |= 0x60;
+    flags |= FLAG_CARRY;
+  }
+
+  cpu->A += sub_set(cpu) ? -correction : correction;
+
+  if (!cpu->A) flags |= FLAG_ZERO;
+
+  unset_zero_flag(cpu);
+  unset_carry_flag(cpu);
+  unset_hcarry_flag(cpu);
+  cpu->F |= flags;
 }
 
 static void bitn(cpu_t *cpu, uint8_t bit, uint8_t target) {

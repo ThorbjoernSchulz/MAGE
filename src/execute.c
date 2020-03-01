@@ -4,7 +4,7 @@
 
 #define is_halt(I)  I == 0x76
 
-uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction);
+uint8_t execute_instruction(cpu_t *cpu, uint8_t instruction);
 
 void timer_update(cpu_t *cpu, uint8_t cycles);
 
@@ -31,7 +31,7 @@ static const uint8_t instruction_duration[] = {
     12, 12, 8, 4, 0, 16, 8, 16, 12, 8, 16, 4, 0, 0, 8, 16
 };
 
-uint8_t cpu_update_state(cpu_t *cpu, debugger_t *debugger) {
+uint8_t update_cpu_state(cpu_t *cpu, debugger_t *debugger) {
   uint8_t cycles = 0;
 
   uint8_t instruction = cpu_read(cpu, cpu->pc);
@@ -42,7 +42,7 @@ uint8_t cpu_update_state(cpu_t *cpu, debugger_t *debugger) {
     cpu->interrupts_enabled = true;
   }
 
-  cycles += cpu_do_execute(cpu, instruction);
+  cycles += execute_instruction(cpu, instruction);
 
   if (!cpu->halted) ++cpu->pc;
 
@@ -58,7 +58,7 @@ unsigned int sleep(unsigned int);
 
 void freeze(void) { while (1) { /* nothing to do */ sleep(5); }}
 
-uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
+uint8_t execute_instruction(cpu_t *cpu, uint8_t instruction) {
   switch (instruction) {
     case 0x00: /* NOP */
       break;
@@ -74,16 +74,16 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
     }
 
     case 0x03: /* INC BC */ {
-      INC2(cpu->B, cpu->C);
+      increment_long_value(cpu->B, cpu->C);
       break;
     }
 
     case 0x04: /* INC B */
-      INC(cpu, cpu->B);
+      increment_short_value(cpu, cpu->B);
       break;
 
     case 0x05: /* DEC B*/
-      DEC(cpu, cpu->B);
+      decrement_short_value(cpu, cpu->B);
       break;
 
     case 0x06: /* LD B, d8 */
@@ -111,16 +111,16 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
     }
 
     case 0x0B: /* DEC BC */ {
-      DEC2(cpu->B, cpu->C);
+      decrement_long_value(cpu->B, cpu->C);
       break;
     }
 
     case 0x0C: /* INC C */
-      INC(cpu, cpu->C);
+      increment_short_value(cpu, cpu->C);
       break;
 
     case 0x0D: /* DEC C */
-      DEC(cpu, cpu->C);
+      decrement_short_value(cpu, cpu->C);
       break;
 
     case 0x0E: /* LD C, d8 */
@@ -132,10 +132,11 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
     }
 
-    case 0x10: /* STOP */
+    case 0x10: /* STOP */ {
       if (cpu_fetch(cpu)) --cpu->pc;
       /* TODO: Implement this */
       break;
+    }
 
     case 0x11: /* LD DE, d16 */ {
       load_long_value(cpu, cpu->D, cpu->E);
@@ -148,21 +149,24 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
     }
 
     case 0x13: /* INC DE */ {
-      INC2(cpu->D, cpu->E);
+      increment_long_value(cpu->D, cpu->E);
       break;
     }
 
-    case 0x14: /* INC D */
-      INC(cpu, cpu->D);
+    case 0x14: /* INC D */ {
+      increment_short_value(cpu, cpu->D);
       break;
+    }
 
-    case 0x15: /* DEC D*/
-      DEC(cpu, cpu->D);
+    case 0x15: /* DEC D*/ {
+      decrement_short_value(cpu, cpu->D);
       break;
+    }
 
-    case 0x16: /* LD D, d8 */
+    case 0x16: /* LD D, d8 */ {
       cpu->D = cpu_fetch(cpu);
       break;
+    }
 
     case 0x17: /* RLA */ {
       rla(cpu);
@@ -185,16 +189,16 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
     }
 
     case 0x1B: /* DEC DE */ {
-      DEC2(cpu->D, cpu->E);
+      decrement_long_value(cpu->D, cpu->E);
       break;
     }
 
     case 0x1C: /* INC E */
-      INC(cpu, cpu->E);
+      increment_short_value(cpu, cpu->E);
       break;
 
     case 0x1D: /* DEC E */
-      DEC(cpu, cpu->E);
+      decrement_short_value(cpu, cpu->E);
       break;
 
     case 0x1E: /* LD E, d8 */
@@ -218,21 +222,21 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
 
     case 0x22: /* LD (HL+), A */ {
       store_short_value(cpu, cpu->H, cpu->L, cpu->A);
-      INC2(cpu->H, cpu->L);
+      increment_long_value(cpu->H, cpu->L);
       break;
     }
 
     case 0x23: /* INC HL */ {
-      INC2(cpu->H, cpu->L);
+      increment_long_value(cpu->H, cpu->L);
       break;
     }
 
     case 0x24: /* INC H */
-      INC(cpu, cpu->H);
+      increment_short_value(cpu, cpu->H);
       break;
 
     case 0x25: /* DEC H */
-      DEC(cpu, cpu->H);
+      decrement_short_value(cpu, cpu->H);
       break;
 
     case 0x26: /* LD H, d8 */
@@ -240,54 +244,37 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
       break;
 
     case 0x27: /* DAA */ {
-      uint8_t correction = 0;
-      uint8_t flags = 0;
-
-      if (hcarry_set(cpu) || (add_set(cpu) && (cpu->A & 0xF) > 9)) {
-        correction |= 0x6;
-      }
-      if (carry_set(cpu) || (add_set(cpu) && cpu->A > 0x99)) {
-        correction |= 0x60;
-        flags |= FLAG_CARRY;
-      }
-
-      cpu->A += sub_set(cpu) ? -correction : correction;
-
-      if (!cpu->A) flags |= FLAG_ZERO;
-
-      unset_zero_flag(cpu);
-      unset_carry_flag(cpu);
-      unset_hcarry_flag(cpu);
-      cpu->F |= flags;
-
+      daa(cpu);
       break;
     }
 
-    case 0x28: /* JR Z, r8 */
-    JR_IF_R8(cpu, zero_set(cpu));
+    case 0x28: /* JR Z, r8 */ {
+      JR_IF_R8(cpu, zero_set(cpu));
       break;
+    }
 
-    case 0x29: /* ADD HL, HL */
-    ADD16(cpu, cpu->H, cpu->L, cpu->H, cpu->L);
+    case 0x29: /* ADD HL, HL */ {
+      ADD16(cpu, cpu->H, cpu->L, cpu->H, cpu->L);
       break;
+    }
 
     case 0x2A: /* LD A, (HL+) */ {
       load_short_value(cpu, cpu->A, cpu->H, cpu->L);
-      INC2(cpu->H, cpu->L);
+      increment_long_value(cpu->H, cpu->L);
       break;
     }
 
     case 0x2B: /* DEC HL */ {
-      DEC2(cpu->H, cpu->L);
+      decrement_long_value(cpu->H, cpu->L);
       break;
     }
 
     case 0x2C: /* INC L */
-      INC(cpu, cpu->L);
+      increment_short_value(cpu, cpu->L);
       break;
 
     case 0x2D: /* DEC L */
-      DEC(cpu, cpu->L);
+      decrement_short_value(cpu, cpu->L);
       break;
 
     case 0x2E: /* LD L, d8 */
@@ -313,49 +300,22 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
 
     case 0x32: /* LD (HL-), A */ {
       store_short_value(cpu, cpu->H, cpu->L, cpu->A);
-      DEC2(cpu->H, cpu->L);
+      decrement_long_value(cpu->H, cpu->L);
       break;
     }
 
     case 0x33: /* INC SP */ {
-      INC2(cpu->S, cpu->P);
+      increment_long_value(cpu->S, cpu->P);
       break;
     }
 
     case 0x34: /* INC (HL) */ {
-      bool carry_was_set = carry_set(cpu);
-      clear_flags(cpu);
-
-      gb_address_t address = concat_bytes(cpu->H, cpu->L);
-      uint8_t byte = cpu_read(cpu, address);
-
-      if ((byte & 0xF) == 0xF) set_hcarry_flag(cpu);
-
-      ++byte;
-
-      if (!byte) set_zero_flag(cpu);
-
-      cpu_write(cpu, address, byte);
-      if (carry_was_set) set_carry_flag(cpu);
+      increment_indirect(cpu, cpu->H, cpu->L);
       break;
     }
 
     case 0x35: /* DEC (HL) */ {
-      bool carry_was_set = carry_set(cpu);
-      clear_flags(cpu);
-      set_sub_flag(cpu);
-
-      gb_address_t address = concat_bytes(cpu->H, cpu->L);
-      uint8_t byte = cpu_read(cpu, address);
-
-      if ((byte & 0xF) == 0) set_hcarry_flag(cpu);
-
-      --byte;
-
-      if (!byte) set_zero_flag(cpu);
-
-      cpu_write(cpu, address, byte);
-      if (carry_was_set) set_carry_flag(cpu);
+      decrement_indirect(cpu, cpu->H, cpu->L);
       break;
     }
 
@@ -385,21 +345,21 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
 
     case 0x3A: /* LD A, (HL-) */ {
       load_short_value(cpu, cpu->A, cpu->H, cpu->L);
-      DEC2(cpu->H, cpu->L);
+      decrement_long_value(cpu->H, cpu->L);
       break;
     }
 
     case 0x3B: /* DEC SP */ {
-      DEC2(cpu->S, cpu->P);
+      decrement_long_value(cpu->S, cpu->P);
       break;
     }
 
     case 0x3C: /* INC A */
-      INC(cpu, cpu->A);
+      increment_short_value(cpu, cpu->A);
       break;
 
     case 0x3D: /* DEC A */
-      DEC(cpu, cpu->A);
+      decrement_short_value(cpu, cpu->A);
       break;
 
     case 0x3E: /* LD A, d8 */
@@ -651,7 +611,7 @@ uint8_t cpu_do_execute(cpu_t *cpu, uint8_t instruction) {
         uint8_t next_instruction = cpu_read(cpu, cpu->pc + (uint16_t) 1);
         if (is_halt(next_instruction)) freeze();
 
-        return 4 + cpu_do_execute(cpu, next_instruction);
+        return 4 + execute_instruction(cpu, next_instruction);
       }
 
       cpu->halted = true;

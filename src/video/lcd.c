@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <SDL2/SDL_surface.h>
-#include <errno.h>
 #include "src/interrupts.h"
 #include "src/mmu.h"
 #include "src/cpu.h"
@@ -46,7 +45,7 @@ void *mmu_get_lcd_regs(mmu_t *mmu);
 lcd_t *lcd_new(mmu_t *mmu, uint8_t *vram, SDL_Surface *surface) {
   lcd_t *lcd = calloc(1, sizeof(lcd_t));
   if (!lcd) {
-    logging_error(strerror(errno));
+    logging_std_error();
     return 0;
   }
 

@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <string.h>
-#include <errno.h>
 
 #import "cartridge.h"
 #include "logging.h"
@@ -276,7 +275,7 @@ static uint8_t *cartridge_load_rom(const char *filename) {
   return memory;
 
   fail:
-  logging_error(strerror(errno));
+  logging_std_error();
   free(memory);
   if (file) fclose(file);
   return 0;
@@ -337,7 +336,7 @@ cartridge_t *cartridge_new(const char *game_path, const char *save_path) {
 
   return cart;
 
-  fail:
+fail:
   free(memory);
   free(cart);
   return 0;

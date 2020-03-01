@@ -13,7 +13,7 @@ void die(const char *s) {
 }
 
 void run(cpu_t *cpu) {
-  while (cpu_read(cpu, cpu->pc) != 0x00) cpu_update_state(cpu, NULL);
+  while (cpu_read(cpu, cpu->pc) != 0x00) update_cpu_state(cpu, NULL);
 }
 
 static uint8_t memory[0xC000];

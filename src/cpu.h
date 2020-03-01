@@ -53,7 +53,7 @@ uint8_t cpu_fetch(cpu_t *cpu);
 
 void cpu_write(cpu_t *cpu, gb_address_t address, uint8_t value);
 
-uint8_t cpu_update_state(cpu_t *cpu, debugger_t *debugger);
+uint8_t update_cpu_state(cpu_t *cpu, debugger_t *debugger);
 
 gb_address_t concat_bytes(uint8_t reg1, uint8_t reg2);
 

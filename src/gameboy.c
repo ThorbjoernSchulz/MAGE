@@ -180,7 +180,7 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
   clock_t start_t = clock();
 
   while (true) {
-    uint8_t cycles_spent = cpu_update_state(&gb->cpu, debugger);
+    uint8_t cycles_spent = update_cpu_state(&gb->cpu, debugger);
 
     if (!run_lcd(&gb->cpu, cycles_spent))
       continue;
