@@ -146,12 +146,10 @@ void game_boy_insert_game(gb_t gb, const char *game_path,
   gb->cartridge = cartridge_new(game_path, save_path);
 
   mmu_t *mmu = gb->cpu.mmu;
-  as_handle_t rom = mmu_map_memory(mmu, 0x0000, 0x8000);
-  as_handle_t ram = mmu_map_memory(mmu, 0xA000, 0xC000);
 
   mem_handler_t *handler = cartridge_get_memory_handler(gb->cartridge);
-  mmu_register_mem_handler(mmu, handler, rom);
-  mmu_register_mem_handler(mmu, handler, ram);
+  mmu_register_mem_handler(mmu, handler, AS_HANDLE_ROM);
+  mmu_register_mem_handler(mmu, handler, AS_HANDLE_EXT);
 
   if (!gb->cartridge) die("Cartridge could not be inserted");
 }
@@ -170,8 +168,9 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
     if (!handler)
       die("Mem_handler allocation failed");
 
-    as_handle_t idx = mmu_map_memory(gb->cpu.mmu, 0x0, 0xC000);
-    mmu_register_mem_handler(gb->cpu.mmu, handler, idx);
+    mmu_register_mem_handler(gb->cpu.mmu, handler, AS_HANDLE_ROM);
+    mmu_register_mem_handler(gb->cpu.mmu, handler, AS_HANDLE_EXT);
+    mmu_register_mem_handler(gb->cpu.mmu, handler, AS_HANDLE_VIDEO);
   }
 
   debugger_t *debugger = 0;

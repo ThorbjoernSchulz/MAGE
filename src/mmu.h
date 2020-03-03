@@ -8,7 +8,10 @@ typedef struct mmu_t mmu_t;
 typedef uint16_t gb_address_t;
 typedef struct memory_handler mem_handler_t;
 
-typedef uint8_t as_handle_t;
+typedef enum { AS_HANDLE_NULL, AS_HANDLE_ROM, AS_HANDLE_VIDEO,
+               AS_HANDLE_EXT, AS_HANDLE_WRAM} as_handle_t;
+
+#define AS_HANDLE_LAST AS_HANDLE_WRAM
 
 mmu_t *mmu_new(void);
 
@@ -41,6 +44,8 @@ uint8_t mmu_get_timer_control_reg(mmu_t *mmu);
 void mmu_set_joypad_input(mmu_t *mmu, uint8_t value);
 
 as_handle_t mmu_map_memory(mmu_t *mmu, uint16_t start, uint16_t end);
+
+as_handle_t mmu_map_register(mmu_t *mmu, gb_address_t addr);
 
 /* takes the descriptor for target and maps start to end to this descriptor */
 void mmu_remap(mmu_t *mmu, uint16_t target, uint16_t start, uint16_t end);

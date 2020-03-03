@@ -33,9 +33,10 @@ void test_mem_handler_init(void) {
 }
 
 static void setup_memory_mapping(mmu_t *mmu) {
-  as_handle_t idx = mmu_map_memory(mmu, 0x0000, 0xC000);
   test_mem_handler_init();
-  mmu_register_mem_handler(mmu, &test_mem_handler, idx);
+  mmu_register_mem_handler(mmu, &test_mem_handler, AS_HANDLE_ROM);
+  mmu_register_mem_handler(mmu, &test_mem_handler, AS_HANDLE_EXT);
+  mmu_register_mem_handler(mmu, &test_mem_handler, AS_HANDLE_VIDEO);
 }
 
 static void clean(cpu_t *cpu) {

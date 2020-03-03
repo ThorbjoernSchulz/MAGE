@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define MMU_START_HANDLE 1
 
 #include "memory_handler.h"
 
@@ -28,14 +27,34 @@ typedef struct mmu_handler {
   mmu_t *mmu;
 } mmu_handler_t;
 
+#define MMU_MAX_HANDLE 32
+#define MMU_START_HANDLE 1
+
+struct __memory_handling {
+  /* handling addresses from 0x0000 to 0x7FFF */
+  mem_handler_t *ROM_handler;
+  /* handling addresses from 0x8000 to 0x9FFF */
+  mem_handler_t *VRAM_handler;
+  /* handling addresses from 0xA000 to 0xBFFF */
+  mem_handler_t *extRAM_handler;
+  /* handling addresses from 0xC000 to 0xDFFF */
+  mem_handler_t *WRAM_handler;
+
+  mmu_handler_t echo_handler;
+
+  /* maps concrete high memory addresses (>=0xFF00) to their memory handlers */
+  as_handle_t high_mem_handles[512];
+  as_handle_t current_handle;
+  mem_handler_t *memory_handlers[MMU_MAX_HANDLE];
+};
+
 typedef struct mmu_t {
   uint8_t internal_ram[8 * 1024];
   uint8_t high_memory[512];
 
-  as_handle_t address_space[256];
-  as_handle_t current_handle;
-
   mem_handler_t *memory_handlers[256];
+
+  struct __memory_handling address_space;
 
   uint8_t *booting_done;
 
@@ -45,6 +64,41 @@ typedef struct mmu_t {
 
   uint32_t timer_clock;
 } mmu_t;
+
+void mmu_assign_rom_handler(mmu_t *mmu, mem_handler_t *handler) {
+  mmu->address_space.ROM_handler = handler;
+}
+
+void mmu_assign_wram_handler(mmu_t *mmu, mem_handler_t *handler) {
+  mmu->address_space.WRAM_handler = handler;
+}
+
+void mmu_assign_vram_handler(mmu_t *mmu, mem_handler_t *handler) {
+  mmu->address_space.VRAM_handler = handler;
+}
+
+void mmu_assign_extram_handler(mmu_t *mmu, mem_handler_t *handler) {
+  mmu->address_space.extRAM_handler = handler;
+}
+
+static DEF_MEM_READ(echo_read) {
+  mmu_t *mmu = ((mmu_handler_t *) this)->mmu;
+  address -= 0x2000;
+  return __mmu_read(mmu, address);
+}
+
+static DEF_MEM_WRITE(echo_write) {
+  mmu_t *mmu = ((mmu_handler_t *) this)->mmu;
+  address -= 0x2000;
+  mmu_write(mmu, address, value);
+}
+
+static void __echo_handler_init(mmu_t *mmu) {
+  mmu->address_space.echo_handler.mmu = mmu;
+  mmu->address_space.echo_handler.base.read = echo_read;
+  mmu->address_space.echo_handler.base.write = echo_write;
+  mmu->address_space.echo_handler.base.destroy = mem_handler_stack_destroy;
+}
 
 uint8_t get_joypad_state(bool direction);
 
@@ -178,31 +232,47 @@ static void mmu_handler_init(mmu_t *mmu) {
 }
 
 static void
-mmu_do_map(mmu_t *mmu, uint16_t start, uint16_t end, as_handle_t h) {
-  assert(start < end);
-  start /= 256;
-  if (end == 0xFFFF) {
-    end /= 256;
-    ++end;
-  } else end /= 256;
-
+__mmu_do_map(mmu_t *mmu, uint16_t start, uint16_t end, as_handle_t h) {
   for (; start != end; ++start)
-    mmu->address_space[start] = h;
+    mmu->address_space.high_mem_handles[start] = h;
+}
+
+as_handle_t mmu_map_register(mmu_t *mmu, gb_address_t addr) {
+  return mmu_map_memory(mmu, addr, addr);
 }
 
 as_handle_t mmu_map_memory(mmu_t *mmu, uint16_t start, uint16_t end) {
-  assert(mmu->current_handle);
-  mmu_do_map(mmu, start, end, mmu->current_handle);
-  return mmu->current_handle++;
-}
-
-void mmu_remap(mmu_t *mmu, uint16_t target, uint16_t start, uint16_t end) {
-  as_handle_t handle = mmu->address_space[target / 256];
-  mmu_do_map(mmu, start, end, handle);
+  assert(start >= 0xFE00 && "Only high addresses can be mapped manually.");
+  assert(start <= end);
+  start -= 0xFE00; end -= 0xFE00;
+  __mmu_do_map(mmu, start, end + 1, mmu->address_space.current_handle);
+  return AS_HANDLE_LAST + mmu->address_space.current_handle++;
 }
 
 void mmu_register_mem_handler(mmu_t *mmu, mem_handler_t *m, as_handle_t h) {
-  mmu->memory_handlers[h] = m;
+  assert(h);
+
+  switch (h) {
+    case AS_HANDLE_ROM:
+      mmu->address_space.ROM_handler = m;
+      break;
+
+    case AS_HANDLE_VIDEO:
+      mmu->address_space.VRAM_handler = m;
+      break;
+
+    case AS_HANDLE_EXT:
+      mmu->address_space.extRAM_handler = m;
+      break;
+
+    case AS_HANDLE_WRAM:
+      mmu->address_space.WRAM_handler = m;
+      break;
+
+    default:
+      /* normalize: we don't want the first few handles to be reserved */
+      mmu->address_space.memory_handlers[h - AS_HANDLE_LAST] = m;
+  }
 }
 
 mmu_t *mmu_new(void) {
@@ -211,30 +281,64 @@ mmu_t *mmu_new(void) {
 
   mmu->read = __mmu_read;
   mmu->booting_done = mmu->high_memory + 0x150;
-  mmu->current_handle = MMU_START_HANDLE;
+  mmu->address_space.current_handle = MMU_START_HANDLE;
 
   /* setup internal memory handler */
   mmu_handler_init(mmu);
 
-  as_handle_t idx = mmu_map_memory(mmu, 0xC000, 0xFFFF);
   mem_handler_t *handler = (mem_handler_t *) &mmu->internal_mem_handler;
-  mmu_register_mem_handler(mmu, handler, idx);
+  mmu_register_mem_handler(mmu, handler, AS_HANDLE_WRAM);
+  as_handle_t handle = mmu_map_memory(mmu, 0xFE00, 0xFFFF);
+  mmu_register_mem_handler(mmu, handler, handle);
 
+  __echo_handler_init(mmu);
   return mmu;
 }
 
 void mmu_delete(mmu_t *mmu) {
-  while (--mmu->current_handle) {
-    mem_handler_t *handler = mmu->memory_handlers[mmu->current_handle];
+  mem_handler_t *handler = 0;
+
+  as_handle_t i = mmu->address_space.current_handle;
+  while (--i) {
+    handler = mmu->address_space.memory_handlers[i];
     handler->destroy(handler);
   }
+
+  handler = mmu->address_space.ROM_handler;
+  handler->destroy(handler);
+
+  handler = mmu->address_space.VRAM_handler;
+  handler->destroy(handler);
+
+  handler = mmu->address_space.extRAM_handler;
+  handler->destroy(handler);
+
+  handler = mmu->address_space.WRAM_handler;
+  handler->destroy(handler);
 
   free(mmu);
 }
 
 static mem_handler_t *mmu_get_mem_handler(mmu_t *mmu, gb_address_t address) {
-  as_handle_t idx = mmu->address_space[address / 256];
-  return mmu->memory_handlers[idx];
+  switch (address & 0xE000) {
+    case 0x0000: case 0x2000: case 0x4000: case 0x6000:
+      return mmu->address_space.ROM_handler;
+    case 0x8000:
+      return mmu->address_space.VRAM_handler;
+    case 0xA000:
+      return mmu->address_space.extRAM_handler;
+    case 0xC000:
+      return mmu->address_space.WRAM_handler;
+    default:
+      break;
+  }
+
+  if (address < 0xFE00)
+    /* echo ram */
+    return (mem_handler_t *) &mmu->address_space.echo_handler;
+
+  as_handle_t idx = mmu->address_space.high_mem_handles[address - 0xFE00];
+  return mmu->address_space.memory_handlers[idx];
 }
 
 static uint8_t __mmu_read(mmu_t *mmu, gb_address_t address) {
@@ -362,8 +466,7 @@ void mmu_init_after_boot(mmu_t *mmu) {
 }
 
 void mmu_register_vram(mmu_t *mmu, mem_handler_t *handler) {
-  as_handle_t idx = mmu_map_memory(mmu, 0x8000, 0xA000);
-  mmu_register_mem_handler(mmu, handler, idx);
+  mmu_register_mem_handler(mmu, handler, AS_HANDLE_VIDEO);
 }
 
 uint8_t *mmu_get_oam_ram(mmu_t *mmu) {
