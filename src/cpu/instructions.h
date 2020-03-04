@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cpu.h"
+#include "src/cpu/cpu.h"
 
 #define high_byte(n)  (uint8_t)(((n) >> 8) & 0xFF)
 #define low_byte(n)   (uint8_t)((n) & 0xFF)

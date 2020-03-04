@@ -1,5 +1,5 @@
 #include "driver/testing.h"
-#include "src/instructions.h"
+#include "src/cpu/instructions.h"
 
 TEST(test_push_pop,
   gb_address_t ip = 0;

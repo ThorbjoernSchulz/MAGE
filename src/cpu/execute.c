@@ -1,14 +1,10 @@
-#include "cpu.h"
+#include "src/cpu/cpu.h"
 #include "instructions.h"
 #include "interrupts.h"
 
 #define is_halt(I)  I == 0x76
 
 uint8_t execute_instruction(cpu_t *cpu, uint8_t instruction);
-
-void timer_update(cpu_t *cpu, uint8_t cycles);
-
-void div_update(cpu_t *cpu, uint8_t cycles);
 
 extern void die(const char *s);
 
@@ -48,8 +44,8 @@ uint8_t update_cpu_state(cpu_t *cpu, debugger_t *debugger) {
 
   cycles += process_interrupts(cpu);
 
-  div_update(cpu, cycles);
-  timer_update(cpu, cycles);
+  div_update(&cpu->timer, cycles);
+  timer_update(&cpu->timer, cycles);
 
   return cycles;
 }

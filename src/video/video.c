@@ -1,5 +1,5 @@
 #include "video.h"
-#include "src/interrupts.h"
+#include "src/cpu/interrupts.h"
 
 enum LCDC {
   BGDisplay = 1,

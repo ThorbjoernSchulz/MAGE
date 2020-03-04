@@ -1,5 +1,5 @@
 #pragma once
-#include <src/cpu.h>
+#include <src/cpu/cpu.h>
 #include <assert.h>
 #include <stdio.h>
 

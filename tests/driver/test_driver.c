@@ -3,9 +3,9 @@
 #include <string.h>
 
 #include "testing.h"
-#include "src/mmu.h"
+#include "src/memory/mmu.h"
 
-#include "src/memory_handler.h"
+#include "src/memory/memory_handler.h"
 
 void die(const char *s) {
   fputs(s, stderr);

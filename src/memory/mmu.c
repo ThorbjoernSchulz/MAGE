@@ -3,8 +3,6 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdbool.h>
-
 
 #include "memory_handler.h"
 
@@ -52,8 +50,6 @@ typedef struct mmu_t {
   uint8_t internal_ram[8 * 1024];
   uint8_t high_memory[512];
 
-  mem_handler_t *memory_handlers[256];
-
   struct __memory_handling address_space;
 
   uint8_t *booting_done;
@@ -61,8 +57,6 @@ typedef struct mmu_t {
   uint8_t (*read)(mmu_t *, gb_address_t);
 
   mmu_handler_t internal_mem_handler;
-
-  uint32_t timer_clock;
 } mmu_t;
 
 void mmu_assign_rom_handler(mmu_t *mmu, mem_handler_t *handler) {
@@ -100,16 +94,6 @@ static void __echo_handler_init(mmu_t *mmu) {
   mmu->address_space.echo_handler.base.destroy = mem_handler_stack_destroy;
 }
 
-uint8_t get_joypad_state(bool direction);
-
-void mmu_set_timer_clock(mmu_t *mmu, uint32_t clocks) {
-  mmu->timer_clock = clocks;
-}
-
-uint32_t mmu_get_timer_clock(mmu_t *mmu) {
-  return mmu->timer_clock;
-}
-
 static DEF_MEM_READ(internal_read) {
   mmu_t *mmu = ((mmu_handler_t *) this)->mmu;
   if (address >= 0xFE00) {
@@ -119,17 +103,6 @@ static DEF_MEM_READ(internal_read) {
       return 0;
 
     switch (address) {
-      case 0xFF00: {
-        /* reading joypad input depends on the bits written to this
-         * address previously, specifically the 4th and 5th bit,
-         * which decide whether a button or direction key was queried */
-        if ((byte & 0x20) == 0) {
-          return get_joypad_state(false);
-        }
-        if ((byte & 0x10) == 0) {
-          return get_joypad_state(true);
-        }
-      }
       case 0xFF01:
         break;
       case 0xFF03:
@@ -141,10 +114,6 @@ static DEF_MEM_READ(internal_read) {
       case 0xFF0D:
       case 0xFF0E:
         byte = 0xFF;
-        break;
-
-      case 0xFF0F:
-        //byte |= 0xE0;
         break;
 
       case 0xFF11:
@@ -188,23 +157,6 @@ static DEF_MEM_WRITE(internal_write) {
       value = 0;
     }
 
-    if (address == 0xFF07) {
-      value &= 7;
-      if ((mmu_read(mmu, 0xFF07) & 3) != (value & 3)) {
-        /* reset counter */
-        mmu_set_timer_counter_reg(mmu, mmu_get_timer_modulo_reg(mmu));
-        mmu->timer_clock = 0;
-      }
-    }
-
-    if (address == 0xFF00) {
-      /* the lower 4 bits are read only */
-      uint8_t current = mmu->high_memory[address - 0xFE00];
-      current &= 0x0F;
-      current |= value & 0xF0;
-      value = current;
-    }
-
     if (address == 0xFF46) {
       /* DMA transfer */
       gb_address_t source = value << 8;
@@ -237,42 +189,23 @@ __mmu_do_map(mmu_t *mmu, uint16_t start, uint16_t end, as_handle_t h) {
     mmu->address_space.high_mem_handles[start] = h;
 }
 
-as_handle_t mmu_map_register(mmu_t *mmu, gb_address_t addr) {
+mem_tuple_t mmu_map_register(mmu_t *mmu, gb_address_t addr) {
   return mmu_map_memory(mmu, addr, addr);
 }
 
-as_handle_t mmu_map_memory(mmu_t *mmu, uint16_t start, uint16_t end) {
+mem_tuple_t mmu_map_memory(mmu_t *mmu, uint16_t start, uint16_t end) {
   assert(start >= 0xFE00 && "Only high addresses can be mapped manually.");
   assert(start <= end);
   start -= 0xFE00; end -= 0xFE00;
   __mmu_do_map(mmu, start, end + 1, mmu->address_space.current_handle);
-  return AS_HANDLE_LAST + mmu->address_space.current_handle++;
+  mem_tuple_t ret = { mmu->high_memory + start,
+                      mmu->address_space.current_handle++ };
+  return ret;
 }
 
 void mmu_register_mem_handler(mmu_t *mmu, mem_handler_t *m, as_handle_t h) {
   assert(h);
-
-  switch (h) {
-    case AS_HANDLE_ROM:
-      mmu->address_space.ROM_handler = m;
-      break;
-
-    case AS_HANDLE_VIDEO:
-      mmu->address_space.VRAM_handler = m;
-      break;
-
-    case AS_HANDLE_EXT:
-      mmu->address_space.extRAM_handler = m;
-      break;
-
-    case AS_HANDLE_WRAM:
-      mmu->address_space.WRAM_handler = m;
-      break;
-
-    default:
-      /* normalize: we don't want the first few handles to be reserved */
-      mmu->address_space.memory_handlers[h - AS_HANDLE_LAST] = m;
-  }
+  mmu->address_space.memory_handlers[h] = m;
 }
 
 mmu_t *mmu_new(void) {
@@ -287,9 +220,10 @@ mmu_t *mmu_new(void) {
   mmu_handler_init(mmu);
 
   mem_handler_t *handler = (mem_handler_t *) &mmu->internal_mem_handler;
-  mmu_register_mem_handler(mmu, handler, AS_HANDLE_WRAM);
-  as_handle_t handle = mmu_map_memory(mmu, 0xFE00, 0xFFFF);
-  mmu_register_mem_handler(mmu, handler, handle);
+  mmu_assign_wram_handler(mmu, handler);
+
+  mem_tuple_t tuple = mmu_map_memory(mmu, 0xFE00, 0xFFFF);
+  mmu_register_mem_handler(mmu, handler, tuple.handle);
 
   __echo_handler_init(mmu);
   return mmu;
@@ -369,50 +303,6 @@ void enable_boot_rom(mmu_t *mmu) {
   mmu->read = mmu_boot_read;
 }
 
-uint8_t mmu_get_interrupt_enable_reg(mmu_t *mmu) {
-  return mmu_read(mmu, 0xFFFF);
-}
-
-void mmu_set_interrupt_enable_reg(mmu_t *mmu, uint8_t reg) {
-  mmu_write(mmu, 0xFFFF, reg);
-}
-
-uint8_t mmu_get_interrupt_flags_reg(mmu_t *mmu) {
-  return mmu_read(mmu, 0xFF0F);
-}
-
-void mmu_set_interrupt_flags_reg(mmu_t *mmu, uint8_t reg) {
-  mmu_write(mmu, 0xFF0F, reg);
-}
-
-uint8_t mmu_get_lcd_control_reg(mmu_t *mmu) {
-  return mmu_read(mmu, 0xFF40);
-}
-
-void mmu_inc_div_reg(mmu_t *mmu) {
-  ++mmu->high_memory[0xFF04 - 0xFE00];
-}
-
-uint8_t mmu_get_div_reg(mmu_t *mmu) {
-  return mmu_read(mmu, 0xFF04);
-}
-
-void mmu_set_timer_counter_reg(mmu_t *mmu, uint8_t value) {
-  mmu_write(mmu, 0xFF05, value);
-}
-
-uint8_t mmu_get_timer_counter_reg(mmu_t *mmu) {
-  return mmu_read(mmu, 0xFF05);
-}
-
-uint8_t mmu_get_timer_modulo_reg(mmu_t *mmu) {
-  return mmu_read(mmu, 0xFF06);
-}
-
-uint8_t mmu_get_timer_control_reg(mmu_t *mmu) {
-  return mmu_read(mmu, 0xFF07);
-}
-
 void *mmu_get_lcd_regs(mmu_t *mmu) {
   return (void *) (&mmu->high_memory[0x140]);
 }
@@ -465,14 +355,6 @@ void mmu_init_after_boot(mmu_t *mmu) {
   mmu_direct_high_mem_write(mmu, 0xFF44, 0x91);
 }
 
-void mmu_register_vram(mmu_t *mmu, mem_handler_t *handler) {
-  mmu_register_mem_handler(mmu, handler, AS_HANDLE_VIDEO);
-}
-
 uint8_t *mmu_get_oam_ram(mmu_t *mmu) {
   return mmu->high_memory;
-}
-
-void mmu_set_joypad_input(mmu_t *mmu, uint8_t value) {
-  mmu_direct_high_mem_write(mmu, 0xFF00, value);
 }

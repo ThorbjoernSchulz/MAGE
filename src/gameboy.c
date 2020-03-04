@@ -2,22 +2,20 @@
 #include <stdio.h>
 
 #include "gameboy.h"
-#include "cpu.h"
-#include "mmu.h"
+#include "src/cpu/cpu.h"
+#include "src/memory/mmu.h"
 
-#include "memory_handler.h"
-#include "interrupts.h"
+#include "src/memory/memory_handler.h"
 #include "cartridge.h"
+
+#include "src/input/sdl_input.h"
 
 #include <SDL2/SDL.h>
 #include <time.h>
 #include <unistd.h>
-#include <assert.h>
 #include <math.h>
 
 void die(const char *s);
-
-bool handle_button_press(cpu_t *cpu);
 
 void set_up_vram(cpu_t *cpu, uint8_t *vram);
 
@@ -41,6 +39,7 @@ static mem_handler_t *null_handler_create(void) {
 
 typedef struct game_boy_t {
   cpu_t cpu;
+  input_t *control_pad;
   cartridge_t *cartridge;
 
   uint8_t vram[8 * 1024];
@@ -71,6 +70,13 @@ gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
   }
 
   cpu_init(&game_boy->cpu, mmu, lcd);
+
+  input_t *input = input_new(&game_boy->cpu, mmu);
+  if (!input) {
+    cpu_delete(&game_boy->cpu);
+    return 0;
+  }
+  game_boy->control_pad = input;
 
   set_up_vram(&game_boy->cpu, game_boy->vram);
 
@@ -148,8 +154,8 @@ void game_boy_insert_game(gb_t gb, const char *game_path,
   mmu_t *mmu = gb->cpu.mmu;
 
   mem_handler_t *handler = cartridge_get_memory_handler(gb->cartridge);
-  mmu_register_mem_handler(mmu, handler, AS_HANDLE_ROM);
-  mmu_register_mem_handler(mmu, handler, AS_HANDLE_EXT);
+  mmu_assign_rom_handler(mmu, handler);
+  mmu_assign_extram_handler(mmu, handler);
 
   if (!gb->cartridge) die("Cartridge could not be inserted");
 }
@@ -168,9 +174,10 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
     if (!handler)
       die("Mem_handler allocation failed");
 
-    mmu_register_mem_handler(gb->cpu.mmu, handler, AS_HANDLE_ROM);
-    mmu_register_mem_handler(gb->cpu.mmu, handler, AS_HANDLE_EXT);
-    mmu_register_mem_handler(gb->cpu.mmu, handler, AS_HANDLE_VIDEO);
+    mmu_t *mmu = gb->cpu.mmu;
+    mmu_assign_rom_handler(mmu, handler);
+    mmu_assign_extram_handler(mmu, handler);
+    mmu_assign_vram_handler(mmu, handler);
   }
 
   debugger_t *debugger = 0;
@@ -184,7 +191,7 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
     if (!run_lcd(&gb->cpu, cycles_spent))
       continue;
 
-    if (handle_button_press(&gb->cpu)) {
+    if (handle_button_press(gb->control_pad)) {
       /* quit game */
       break;
     }
@@ -211,6 +218,7 @@ static void wait_until_next_frame(double time_spent) {
 
 void game_boy_delete(gb_t gb) {
   cpu_delete(&(gb->cpu));
+  input_delete(gb->control_pad);
   cartridge_delete(gb->cartridge);
   free(gb);
 }
@@ -248,6 +256,6 @@ mem_handler_t *vram_handler_create(uint8_t *vram) {
 void set_up_vram(cpu_t *cpu, uint8_t *vram) {
   mem_handler_t *handler = vram_handler_create(vram);
   if (!handler) die("Could not allocate video_ram memory");
-  mmu_register_vram(cpu->mmu, handler);
+  mmu_assign_vram_handler(cpu->mmu, handler);
 }
 

@@ -13,6 +13,7 @@
  * a specific "memory handler". When a read or a write happens
  * on any address in that range, the memory handler gets called.
  *
+ * TODO: update outdated documentation
  * To do this simply request an as_handle (as in address space)
  * with mmu_map_memory, and call mmu_register_mem_handler with it.
  *

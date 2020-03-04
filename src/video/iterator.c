@@ -1,4 +1,4 @@
-#include <src/cpu.h>
+#include <src/cpu/cpu.h>
 #include <assert.h>
 #include "video.h"
 #include "iterator.h"

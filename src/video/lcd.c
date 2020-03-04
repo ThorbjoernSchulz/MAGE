@@ -3,10 +3,10 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <SDL2/SDL_surface.h>
-#include "src/interrupts.h"
-#include "src/mmu.h"
-#include "src/cpu.h"
-#include "src/memory_handler.h"
+#include "src/cpu/interrupts.h"
+#include "src/memory/mmu.h"
+#include "src/cpu/cpu.h"
+#include "src/memory/memory_handler.h"
 #include "src/logging.h"
 
 #include "video.h"

@@ -1,5 +1,6 @@
 #include "cpu.h"
-#include "mmu.h"
+#include "src/memory/mmu.h"
+#include "interrupts.h"
 
 extern void mmu_write(mmu_t *mmu, gb_address_t address, uint8_t value);
 
@@ -8,6 +9,8 @@ extern uint8_t mmu_read(mmu_t *mmu, gb_address_t address);
 void cpu_init(cpu_t *this, mmu_t *mmu, lcd_t *lcd) {
   this->mmu = mmu;
   this->lcd = lcd;
+  timer_init(&this->timer, this, mmu);
+  interrupt_controller_init(&this->interrupt_controller, this, mmu);
 }
 
 void cpu_delete(cpu_t *cpu) {

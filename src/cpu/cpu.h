@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include "timer.h"
+#include "interrupts.h"
 
 typedef struct debugger debugger_t;
 
@@ -39,7 +41,8 @@ typedef struct cpu {
   bool interrupts_enabled;
   bool halted;
 
-  uint32_t div_clock;
+  cpu_timer_t timer;
+  interrupt_controller_t interrupt_controller;
 } cpu_t;
 
 /* initializes cpu that is allocated on the stack */

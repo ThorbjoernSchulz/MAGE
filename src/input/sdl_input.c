@@ -1,27 +1,8 @@
+#include "sdl_input.h"
 #include <SDL2/SDL.h>
-#include <assert.h>
-#include "cpu.h"
-#include "mmu.h"
-#include "interrupts.h"
+#include <stdio.h>
 
-#define GAME_BOY_START  0x80
-#define GAME_BOY_SELECT 0x40
-#define GAME_BOY_B      0x20
-#define GAME_BOY_A      0x10
-#define GAME_BOY_DOWN   0x8
-#define GAME_BOY_UP     0x4
-#define GAME_BOY_LEFT   0x2
-#define GAME_BOY_RIGHT  0x1
-
-static uint8_t joypad_state = 0;
-
-/* Select the relevant bits. Does the game query direction keys or buttons? */
-uint8_t get_joypad_state(bool direction) {
-  int relevant = (direction ? (joypad_state & 0x0F) : (joypad_state >> 4));
-  return (uint8_t) (~relevant);
-}
-
-uint8_t decode_keycode(SDL_Keycode keycode) {
+static uint8_t decode_keycode(SDL_Keycode keycode) {
   uint8_t key = 0;
   switch (keycode) {
     case SDLK_UP:
@@ -61,24 +42,20 @@ uint8_t decode_keycode(SDL_Keycode keycode) {
   return key;
 }
 
-bool handle_button_press(cpu_t *cpu) {
+bool handle_button_press(input_t *input) {
   SDL_Event event;
 
   if (!SDL_PollEvent(&event)) return false;
 
-  uint8_t key = 0;
+  uint8_t key = decode_keycode(event.key.keysym.sym);
 
   switch (event.type) {
     case SDL_KEYDOWN:
-      key = decode_keycode(event.key.keysym.sym);
-      joypad_state |= key;
-      raise_interrupt(cpu, INT_JOYPAD);
+      input_press(input, key);
       break;
 
     case SDL_KEYUP: {
-      mmu_set_joypad_input(cpu->mmu, 0xFF);
-      key = decode_keycode(event.key.keysym.sym);
-      joypad_state &= ~key;
+      input_unpress(input, key);
       break;
     }
 
@@ -93,3 +70,4 @@ bool handle_button_press(cpu_t *cpu) {
 
   return false;
 }
+
