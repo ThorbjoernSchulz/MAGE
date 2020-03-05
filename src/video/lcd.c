@@ -79,11 +79,7 @@ DEF_MEM_WRITE(ppu_write) {
 
   if (address < 0xFEA0) {
     /* OAM memory */
-    if (get_mode(registers) > 1)
-      return;
-
     ((uint8_t *) handler->ppu->oam)[address - OAM_BASE] = value;
-
     return;
   }
   uint8_t *start = (uint8_t *) registers;
