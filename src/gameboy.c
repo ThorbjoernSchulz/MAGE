@@ -1,19 +1,18 @@
 #include <stdlib.h>
 #include <stdio.h>
-
-#include "gameboy.h"
-#include "src/cpu/cpu.h"
-#include "src/memory/mmu.h"
-
-#include "src/memory/memory_handler.h"
-#include "cartridge.h"
-
-#include "src/input/sdl_input.h"
-
-#include <SDL2/SDL.h>
 #include <time.h>
 #include <unistd.h>
 #include <math.h>
+
+#include <cpu/cpu.h>
+#include <memory/mmu.h>
+#include <memory/memory_handler.h>
+#include <input/sdl_input.h>
+
+#include "gameboy.h"
+#include "cartridge.h"
+
+#include <SDL2/SDL.h>
 
 void die(const char *s);
 
@@ -188,7 +187,7 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
   while (true) {
     uint8_t cycles_spent = update_cpu_state(&gb->cpu, debugger);
 
-    if (!run_lcd(gb->cpu.ppu, cycles_spent))
+    if (!ppu_update(gb->cpu.ppu, cycles_spent))
       continue;
 
     if (handle_button_press(gb->control_pad)) {

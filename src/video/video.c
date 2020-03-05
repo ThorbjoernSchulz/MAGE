@@ -1,5 +1,5 @@
 #include "video.h"
-#include "src/cpu/interrupts.h"
+#include <cpu/interrupts.h>
 
 enum LCDC {
   BGDisplay = 1,
@@ -45,10 +45,6 @@ gb_address_t get_bg_display_start_offset(ppu_regs_t *regs) {
 gb_address_t get_window_display_start_offset(ppu_regs_t *regs) {
   return (uint16_t) (
       regs->lcd_control & WindowTileMapDisplaySelect ? 0x1C00 : 0x1800);
-}
-
-gb_address_t get_sprite_data_start_offset(ppu_regs_t *regs) {
-  return (uint16_t) 0;
 }
 
 bool obj_height_is_16_bit(ppu_regs_t *regs) {

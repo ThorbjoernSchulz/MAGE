@@ -1,5 +1,10 @@
 #pragma once
 
+#define get_pixel(tile_line, n) (((tile_line) >> (14 - n * 2)) & 3)
+#define flip_line_8bit(line) (((line) & 3) << 6) | (((line) &  12) << 2)\
+                                                 | (((line) &  48) >> 2)\
+                                                 | (((line) & 192) >> 6)
+
 typedef struct pixel_data {
   uint8_t data[16];
 } px_data_t;
@@ -20,11 +25,6 @@ typedef struct camera_iterator {
   uint8_t *window;
 } camera_iterator_t;
 
-typedef struct sprite_pixel_iterator {
-  int x, y;
-  px_data_t *tile;
-} sprite_px_it_t;
-
 typedef px_data_t *(*find_tile_t)(uint8_t, px_data_t *);
 
 px_data_t *find_tile_unsigned(uint8_t tile_id, px_data_t *tiles);
@@ -37,8 +37,6 @@ uint8_t next_pixel(camera_iterator_t *it, find_tile_t find_tile,
 camera_iterator_t reset_iterator(ppu_regs_t *regs, uint8_t *vram);
 
 void update_scrolling(camera_iterator_t *it, ppu_regs_t *regs);
-
-int next_sprite_pixel(sprite_px_it_t *it, bool x_flip, bool y_flip);
 
 uint16_t decode_tile_line(px_data_t *tile, int line);
 uint16_t flip_line(uint16_t line);

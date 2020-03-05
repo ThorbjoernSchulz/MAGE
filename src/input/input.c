@@ -1,8 +1,9 @@
 #include <stdlib.h>
 
 #include "input.h"
-#include "src/cpu/interrupts.h"
-#include "src/memory/memory_handler.h"
+#include <cpu/interrupts.h>
+#include <memory/memory_handler.h>
+#include <memory/mmu.h>
 
 struct input_t;
 

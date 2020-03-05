@@ -31,8 +31,6 @@ gb_address_t get_bg_display_start_offset(ppu_regs_t *regs);
 
 gb_address_t get_window_display_start_offset(ppu_regs_t *regs);
 
-gb_address_t get_sprite_data_start_offset(ppu_regs_t *regs);
-
 bool obj_height_is_16_bit(ppu_regs_t *regs);
 
 bool window_enabled(ppu_regs_t *regs);

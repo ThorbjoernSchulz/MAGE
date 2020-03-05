@@ -1,5 +1,5 @@
 #include "cpu.h"
-#include "src/memory/mmu.h"
+#include <memory/mmu.h>
 #include "interrupts.h"
 
 extern void mmu_write(mmu_t *mmu, gb_address_t address, uint8_t value);

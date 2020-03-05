@@ -1,6 +1,6 @@
-#include "sdl_input.h"
-#include <SDL2/SDL.h>
 #include <stdio.h>
+#include <SDL2/SDL.h>
+#include "sdl_input.h"
 
 static uint8_t decode_keycode(SDL_Keycode keycode) {
   uint8_t key = 0;

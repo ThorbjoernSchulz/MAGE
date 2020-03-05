@@ -60,7 +60,7 @@ uint8_t update_cpu_state(cpu_t *cpu, debugger_t *debugger);
 
 gb_address_t concat_bytes(uint8_t reg1, uint8_t reg2);
 
-bool run_lcd(ppu_t *ppu, uint8_t cycles);
+bool ppu_update(ppu_t *ppu, uint8_t cycles);
 
 void enable_boot_rom(mmu_t *mmu);
 

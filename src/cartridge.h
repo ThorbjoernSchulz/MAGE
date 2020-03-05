@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/memory/memory_handler.h"
+#include <memory/memory_handler.h>
 
 typedef struct cartridge_t cartridge_t;
 

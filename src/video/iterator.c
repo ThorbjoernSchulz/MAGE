@@ -1,4 +1,3 @@
-#include <src/cpu/cpu.h>
 #include <assert.h>
 #include "video.h"
 #include "iterator.h"
@@ -37,11 +36,6 @@ const uint16_t decoder[] = {
     0x5500, 0x5501, 0x5504, 0x5505, 0x5510, 0x5511, 0x5514, 0x5515,
     0x5540, 0x5541, 0x5544, 0x5545, 0x5550, 0x5551, 0x5554, 0x5555,
 };
-
-#define get_pixel(tile_line, n) (((tile_line) >> (14 - n * 2)) & 3)
-#define flip_line_8bit(line) (((line) & 3) << 6) | (((line) &  12) << 2)\
-                                                 | (((line) &  48) >> 2)\
-                                                 | (((line) & 192) >> 6)
 
 uint16_t flip_line(uint16_t line) {
   int part_one = (line >> 8);
@@ -149,25 +143,3 @@ void update_scrolling(camera_iterator_t *it, ppu_regs_t *regs) {
   it->scroll_y = regs->scroll_y;
   it->scroll_x = regs->scroll_x;
 }
-
-int next_sprite_pixel(sprite_px_it_t *it, bool x_flip, bool y_flip) {
-  if (it->x == 8) {
-    it->x = 0;
-
-    /* little bit optimized: The y value increases or decreases depending on
-     * the value of y_flip */
-    it->y += (int) !y_flip - y_flip;
-    if (it->y == ((!y_flip) << 3)) {
-      it->y = (y_flip << 3) - y_flip;
-      ++it->tile;
-    }
-  }
-
-  uint16_t line = decode_tile_line(it->tile, it->y);
-  if (x_flip) { line = flip_line(line); }
-  int color = get_pixel(line, it->x);
-  ++it->x;
-
-  return color;
-}
-

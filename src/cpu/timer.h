@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include <src/memory/memory_handler.h>
+#include <memory/memory_handler.h>
 
 typedef struct cpu cpu_t;
 typedef struct mmu_t mmu_t;

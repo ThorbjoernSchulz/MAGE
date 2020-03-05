@@ -1,6 +1,6 @@
 #include <stdio.h>
+
 #include "instructions.h"
-#include "src/cpu/cpu.h"
 
 #define half_carry16(a, b) (((a) & 0xFFF) + ((b) & 0xFFF)) > 0xFFF
 #define half_carry_c(a, b, c) (((a) & 0xF) + ((b) & 0xF) + (c)) > 0xF

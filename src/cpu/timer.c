@@ -1,7 +1,6 @@
-#include <src/memory/memory_handler.h>
-#include "src/cpu/cpu.h"
-#include "src/memory/mmu.h"
-#include "src/cpu/interrupts.h"
+#include <cpu/cpu.h>
+#include <cpu/interrupts.h>
+#include <memory/mmu.h>
 #include "timer.h"
 
 static const uint16_t input_clock_types[] = {

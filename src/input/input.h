@@ -1,5 +1,6 @@
 #pragma once
-#include "src/memory/mmu.h"
+
+#include <stdint.h>
 
 #define GAME_BOY_START  0x80
 #define GAME_BOY_SELECT 0x40
@@ -12,6 +13,7 @@
 
 typedef struct cpu cpu_t;
 typedef struct input_t input_t;
+typedef struct mmu_t mmu_t;
 
 input_t *input_new(cpu_t *interrupt_line , mmu_t *mmu);
 void input_delete(input_t *input);

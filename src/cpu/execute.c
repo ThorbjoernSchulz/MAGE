@@ -1,4 +1,4 @@
-#include "src/cpu/cpu.h"
+#include <cpu/cpu.h>
 #include "instructions.h"
 #include "interrupts.h"
 

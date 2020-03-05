@@ -1,6 +1,5 @@
 #include "interrupts.h"
-#include "src/cpu/cpu.h"
-#include "src/memory/mmu.h"
+#include <memory/mmu.h>
 #include "instructions.h"
 
 extern void die(const char *s);
