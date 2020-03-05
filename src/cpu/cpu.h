@@ -9,7 +9,7 @@
 typedef struct debugger debugger_t;
 
 typedef struct mmu_t mmu_t;
-typedef struct lcd_display lcd_t;
+typedef struct pixel_processing_unit ppu_t;
 typedef uint16_t gb_address_t;
 
 typedef struct cpu {
@@ -35,7 +35,7 @@ typedef struct cpu {
   /* memory management unit */
   mmu_t *mmu;
 
-  lcd_t *lcd;
+  ppu_t *ppu;
 
   bool ei_instruction_used;
   bool interrupts_enabled;
@@ -46,7 +46,7 @@ typedef struct cpu {
 } cpu_t;
 
 /* initializes cpu that is allocated on the stack */
-void cpu_init(cpu_t *this, mmu_t *mmu, lcd_t *lcd);
+void cpu_init(cpu_t *this, mmu_t *mmu, ppu_t *lcd);
 
 void cpu_delete(cpu_t *cpu);
 
@@ -60,7 +60,7 @@ uint8_t update_cpu_state(cpu_t *cpu, debugger_t *debugger);
 
 gb_address_t concat_bytes(uint8_t reg1, uint8_t reg2);
 
-bool run_lcd(cpu_t *cpu, uint8_t cycles);
+bool run_lcd(ppu_t *ppu, uint8_t cycles);
 
 void enable_boot_rom(mmu_t *mmu);
 

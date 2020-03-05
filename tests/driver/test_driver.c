@@ -41,11 +41,11 @@ static void setup_memory_mapping(mmu_t *mmu) {
 
 static void clean(cpu_t *cpu) {
   mmu_t *mmu = cpu->mmu;
-  lcd_t *lcd = cpu->lcd;
+  ppu_t *lcd = cpu->ppu;
   memset(cpu, 0, sizeof(cpu_t));
   cpu->mmu = mmu;
   mmu_clean(cpu->mmu);
-  cpu->lcd = lcd;
+  cpu->ppu = lcd;
 }
 
 static void do_test(test_t test, cpu_t *cpu) {
@@ -65,9 +65,9 @@ extern void (*__testing_array_end[]) (cpu_t *);
 int main(void) {
   memset(memory, 0, sizeof(memory));
   mmu_t *mmu = mmu_new();
-  lcd_t *lcd = lcd_new(mmu, memory + 0x8000, NULL);
   cpu_t *cpu = calloc(1, sizeof(cpu_t));
-  cpu_init(cpu, mmu, lcd);
+  ppu_t *ppu = ppu_new(mmu, cpu, memory + 0x8000, NULL);
+  cpu_init(cpu, mmu, ppu);
   setup_memory_mapping(mmu);
 
   const size_t size = __testing_array_end - __testing_array_start;

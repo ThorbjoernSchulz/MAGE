@@ -24,8 +24,9 @@ add_library(Interna STATIC
         src/input/input.h src/input/sdl_input.c src/input/sdl_input.h src/cpu/timer.h)
 
 add_executable(GameBoy src/main.c src/gameboy.h src/gameboy.c)
-target_link_libraries(GameBoy Interna SDL2 -fsanitize=address)
+#target_link_libraries(GameBoy Interna SDL2)
 
+target_link_libraries(GameBoy Interna SDL2 -fsanitize=address)
 target_compile_options(GameBoy PRIVATE -fsanitize=address -fomit-frame-pointer -g)
 target_compile_options(Interna PRIVATE -fsanitize=address -fomit-frame-pointer -g)
 

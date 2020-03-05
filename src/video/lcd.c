@@ -11,7 +11,7 @@
 #include "video.h"
 #include "iterator.h"
 
-static void reset_beam(lcd_t *lcd);
+static void reset_beam(ppu_t *ppu);
 
 #define REG_BASE 0xFF40
 #define OAM_BASE 0xFE00
@@ -23,32 +23,42 @@ typedef struct oam_entry {
   uint8_t flags;
 } oam_entry_t;
 
-typedef struct lcd_memory_handler {
+typedef struct ppu_memory_handler {
   mem_handler_t base;
-  lcd_t *lcd;
-} lcd_mem_handler_t;
+  ppu_t *ppu;
+} ppu_mem_handler_t;
 
-typedef struct lcd_display {
+typedef struct pixel_processing_unit {
   uint8_t *vram;
   oam_entry_t *oam;
-  lcd_regs_t *registers;
+  ppu_regs_t *registers;
   SDL_Surface *display;
+
+  mmu_t *mmu; /* for DMA transfer */
+  cpu_t *interrupt_line;
+
+  oam_entry_t *visible_sprites[10];
+  int num_visible_sprites;
+
   camera_iterator_t beam_position;
   uint16_t scan_line_counter;
 
-  lcd_mem_handler_t handler;
-  mmu_t *mmu; /* for DMA transfer */
-} lcd_t;
+  ppu_mem_handler_t handler;
+} ppu_t;
 
-DEF_MEM_READ(lcd_read) {
-  lcd_mem_handler_t *handler = (lcd_mem_handler_t *) this;
+DEF_MEM_READ(ppu_read) {
+  ppu_mem_handler_t *handler = (ppu_mem_handler_t *) this;
+  ppu_regs_t *registers = handler->ppu->registers;
 
   if (address < 0xFEA0) {
     /* OAM memory */
-    return ((uint8_t *)handler->lcd->oam)[address - OAM_BASE];
+    if (get_mode(registers) > 1)
+      return 0xFF;
+
+    return ((uint8_t *) handler->ppu->oam)[address - OAM_BASE];
   }
 
-  uint8_t *start = (uint8_t *) handler->lcd->registers;
+  uint8_t *start = (uint8_t *) registers;
   uint8_t byte = start[address - REG_BASE];
 
   switch (address) {
@@ -63,17 +73,21 @@ DEF_MEM_READ(lcd_read) {
   return byte;
 }
 
-DEF_MEM_WRITE(lcd_write) {
-  lcd_mem_handler_t *handler = (lcd_mem_handler_t *) this;
+DEF_MEM_WRITE(ppu_write) {
+  ppu_mem_handler_t *handler = (ppu_mem_handler_t *) this;
+  ppu_regs_t *registers = handler->ppu->registers;
 
   if (address < 0xFEA0) {
     /* OAM memory */
-    ((uint8_t *)handler->lcd->oam)[address - OAM_BASE] = value;
+    if (get_mode(registers) > 1)
+      return;
+
+    ((uint8_t *) handler->ppu->oam)[address - OAM_BASE] = value;
 
     return;
   }
+  uint8_t *start = (uint8_t *) registers;
 
-  uint8_t *start = (uint8_t *) handler->lcd->registers;
   uint8_t current_value = start[address - REG_BASE];
 
   switch (address) {
@@ -90,7 +104,7 @@ DEF_MEM_WRITE(lcd_write) {
     case 0xFF46: {
       /* DMA transfer to OAM */
       gb_address_t source = value << 8;
-      mmu_dma_transfer(handler->lcd->mmu, source, OAM_BASE);
+      mmu_dma_transfer(handler->ppu->mmu, source, OAM_BASE);
       return;
     }
 
@@ -100,112 +114,47 @@ DEF_MEM_WRITE(lcd_write) {
   start[address - 0xFF40] = value;
 }
 
-lcd_t *lcd_new(mmu_t *mmu, uint8_t *vram, SDL_Surface *surface) {
-  lcd_t *lcd = calloc(1, sizeof(lcd_t));
-  if (!lcd) {
+ppu_t *ppu_new(mmu_t *mmu, cpu_t *interrupt_line, uint8_t *vram,
+               SDL_Surface *surface) {
+  ppu_t *ppu = calloc(1, sizeof(ppu_t));
+  if (!ppu) {
     logging_std_error();
     return 0;
   }
-  lcd->mmu = mmu;
+  ppu->mmu = mmu;
+  ppu->interrupt_line = interrupt_line;
 
-  lcd->handler.base.read = lcd_read;
-  lcd->handler.base.write = lcd_write;
-  lcd->handler.base.destroy = mem_handler_stack_destroy;
-  lcd->handler.lcd = lcd;
+  ppu->handler.base.read = ppu_read;
+  ppu->handler.base.write = ppu_write;
+  ppu->handler.base.destroy = mem_handler_stack_destroy;
+  ppu->handler.ppu = ppu;
 
   mem_tuple_t tuple = mmu_map_memory(mmu, OAM_BASE, OAM_BASE + 160);
-  lcd->oam = (oam_entry_t *)tuple.memory;
-  mmu_register_mem_handler(mmu, (mem_handler_t *) &lcd->handler, tuple.handle);
+  ppu->oam = (oam_entry_t *) tuple.memory;
+  mmu_register_mem_handler(mmu, (mem_handler_t *) &ppu->handler, tuple.handle);
 
-  tuple = mmu_map_memory(mmu, REG_BASE, REG_BASE + sizeof(lcd_regs_t) - 1);
-  lcd->registers = (lcd_regs_t *) tuple.memory;
-  mmu_register_mem_handler(mmu, (mem_handler_t *) &lcd->handler, tuple.handle);
+  tuple = mmu_map_memory(mmu, REG_BASE, REG_BASE + sizeof(ppu_regs_t) - 1);
+  ppu->registers = (ppu_regs_t *) tuple.memory;
+  mmu_register_mem_handler(mmu, (mem_handler_t *) &ppu->handler, tuple.handle);
 
-  lcd->vram = vram;
-  lcd->display = surface;
-  lcd->scan_line_counter = 456;
-  reset_beam(lcd);
+  ppu->vram = vram;
+  ppu->display = surface;
+  ppu->scan_line_counter = 456;
+  reset_beam(ppu);
 
-  return lcd;
+  return ppu;
 }
 
-void lcd_delete(lcd_t *lcd) {
-  free(lcd);
+void ppu_delete(ppu_t *ppu) {
+  free(ppu);
 }
 
-static void decode_palette(uint8_t reg, uint32_t *const palette);
-
-static void draw_sprites(lcd_t *lcd, uint32_t *screen_buffer);
+static void decode_palette(uint8_t reg, uint8_t *const palette);
 
 static int sprite_cmp(const void *_a, const void *_b);
 
-static void
-draw_sprite(lcd_t *lcd, uint32_t *screen_buffer, oam_entry_t *sprite,
-            uint32_t *palette0, uint32_t *palette1);
-
-static const uint32_t to_sdl_color[] = {
-    0x00FFFFFF, 0x00AAAAAA, 0x00555555, 0x00000000
-};
-
-static void decode_palette(uint8_t reg, uint32_t *const palette) {
-  palette[0] = to_sdl_color[(reg >> 0) & 0x3];
-  palette[1] = to_sdl_color[(reg >> 4) & 0x3];
-  palette[2] = to_sdl_color[(reg >> 2) & 0x3];
-  palette[3] = to_sdl_color[(reg >> 6) & 0x3];
-}
-
-static void render_line(lcd_t *lcd) {
-  if (!lcd->display) return;
-
-  camera_iterator_t *it = &lcd->beam_position;
-  lcd_regs_t *regs = lcd->registers;
-  int line_no = regs->lcdc_y;
-  uint32_t *screen_buffer = lcd->display->pixels;
-
-  update_scrolling(it, regs);
-
-  /* pick the right strategy to find the tiles in memory */
-  find_tile_t find_tile =
-      get_bg_data_select(regs) ? find_tile_unsigned : find_tile_signed;
-
-  uint32_t palette[4];
-  decode_palette(regs->bg_palette, palette);
-
-  /* compute start and end of the line and then draw it */
-  int buffer_index = line_no * 160;
-  int end_index = buffer_index + 160;
-  while (buffer_index != end_index) {
-    screen_buffer[buffer_index++] = next_pixel(it, find_tile, palette);
-  }
-}
-
-static void draw_sprites(lcd_t *lcd, uint32_t *screen_buffer) {
-  oam_entry_t *sprites[40] = {0};
-  size_t active_sprites = 0;
-
-  /* which sprites are visible at all? */
-  for (int i = 0; i < 40; ++i) {
-    if (lcd->oam[i].pos_x == 0 || lcd->oam[i].pos_x >= 168 ||
-        lcd->oam[i].pos_y == 0 || lcd->oam[i].pos_y >= 160)
-      continue;
-
-    sprites[active_sprites++] = &lcd->oam[i];
-  }
-
-  /* sort sprites by priority */
-  qsort((void *) sprites, active_sprites, sizeof(oam_entry_t *), sprite_cmp);
-
-  lcd_regs_t *regs = lcd->registers;
-
-  uint32_t palette_0[4] = {0};
-  decode_palette(regs->obj_palette_0, palette_0);
-
-  uint32_t palette_1[4] = {0};
-  decode_palette(regs->obj_palette_1, palette_1);
-
-  for (int i = 0; i < active_sprites; ++i)
-    /* draw sprite */
-    draw_sprite(lcd, screen_buffer, sprites[i], palette_0, palette_1);
+static void reset_beam(ppu_t *ppu) {
+  ppu->beam_position = reset_iterator(ppu->registers, ppu->vram);
 }
 
 static int sprite_cmp(const void *_a, const void *_b) {
@@ -220,85 +169,185 @@ static int sprite_cmp(const void *_a, const void *_b) {
   return a->pos_x < b->pos_x ? -1 : 1;
 }
 
-static void
-draw_sprite(lcd_t *lcd, uint32_t *screen_buffer, oam_entry_t *sprite,
-            uint32_t *palette0, uint32_t *palette1) {
-  lcd_regs_t *regs = lcd->registers;
+void find_visible_sprites(ppu_t *ppu) {
+  /* which sprites are visible at all? */
+  ppu->num_visible_sprites = 0;
+  ppu_regs_t *regs = ppu->registers;
 
-  /* first figure out how the sprite should be drawn */
-  uint32_t *palette = sprite->flags & 0x10 ? palette1 : palette0;
+  int ly = regs->lcdc_y + 16;
+  int h = obj_height_is_16_bit(regs) ? 16 : 8;
 
-  uint32_t bg_low_prio_color = to_sdl_color[(regs->bg_palette >> 0) & 0x3];
+  for (int i = 0; i < 40; ++i) {
+    oam_entry_t *oam = &ppu->oam[i];
+    if (oam->pos_x == 0 || ly < oam->pos_y || ly >= oam->pos_y + h)
+      continue;
 
-  sprite_px_it_t it = {.tile = (px_data_t *) lcd->vram + sprite->tile_number};
-
-  bool y_flip = (sprite->flags & 0x40) != 0;
-  bool x_flip = (sprite->flags & 0x20) != 0;
-
-  int sprite_height = obj_height_is_16_bit(regs) ? 16 : 8;
-
-  if (y_flip) /* y flip */ {
-    it.y = sprite_height - 1;
+    ppu->visible_sprites[ppu->num_visible_sprites] = oam;
+    if (++ppu->num_visible_sprites == 10)
+      break;
   }
 
-  /* ok, let's draw it to the screen */
-  int screen_y = (int) sprite->pos_y - 16;
+  /* sort sprites by priority */
+  qsort((void *) ppu->visible_sprites, ppu->num_visible_sprites,
+        sizeof(oam_entry_t *), sprite_cmp);
+}
 
-  for (int y = 0; y < sprite_height; ++y, ++screen_y) {
-    int screen_x = (int) sprite->pos_x - 8;
+static void decode_palette(uint8_t reg, uint8_t *const palette) {
+  palette[0] = (reg >> 0) & 0x3;
+  palette[1] = (reg >> 4) & 0x3;
+  palette[2] = (reg >> 2) & 0x3;
+  palette[3] = (reg >> 6) & 0x3;
+}
 
-    /* is the pixel visible ? */
-    if (screen_y < 0 || screen_y >= 144) continue;
+static void render_background_line(ppu_t *ppu, uint8_t *buffer) {
+  if (!ppu->display) return;
 
-    for (int x = 0; x < 8; ++x, ++screen_x) {
-      int color = next_sprite_pixel(&it, x_flip, y_flip);
-      if (!color) continue;
+  camera_iterator_t *it = &ppu->beam_position;
+  ppu_regs_t *regs = ppu->registers;
+  int line_no = regs->lcdc_y;
 
-      if (screen_x < 0 || screen_x >= 160) continue;
+  update_scrolling(it, regs);
 
-      int pixel_pos = screen_y * 160 + screen_x;
+  /* pick the right strategy to find the tiles in memory */
+  find_tile_t find_tile =
+      get_bg_data_select(regs) ? find_tile_unsigned : find_tile_signed;
 
-      if (pixel_pos >= 160 * 144) continue;
+  uint8_t palette[4];
+  decode_palette(regs->bg_palette, palette);
 
-      if (sprite->flags & 0x80) { /* priority bit */
-        if (screen_buffer[pixel_pos] != bg_low_prio_color) continue;
-      }
+  /* compute start and end of the line and then draw it */
+  for (int i = 0; i < 160; ++i)
+    buffer[i] = next_pixel(it, find_tile, palette);
+}
 
-      screen_buffer[pixel_pos] = palette[color];
+#define get_pixel(tile_line, n) (((tile_line) >> (14 - n * 2)) & 3)
+#define flip_line_8bit(line) (((line) & 3) << 6) | (((line) &  12) << 2)\
+                                                 | (((line) &  48) >> 2)\
+                                                 | (((line) & 192) >> 6)
+
+static void render_sprite_line(ppu_t *ppu, uint8_t *buffer) {
+  oam_entry_t **sprites = ppu->visible_sprites;
+  int active_sprites = ppu->num_visible_sprites;
+
+  ppu_regs_t *regs = ppu->registers;
+
+  uint8_t palette_0[4] = {0};
+  decode_palette(regs->obj_palette_0, palette_0);
+
+  uint8_t palette_1[4] = {0};
+  decode_palette(regs->obj_palette_1, palette_1);
+
+  for (int i = active_sprites; i--;) {
+    oam_entry_t *sprite = sprites[i];
+    uint8_t *palette = sprite->flags & 0x10 ? palette_1 : palette_0;
+
+    px_data_t *tile = ((px_data_t *) ppu->vram) + sprite->tile_number;
+
+    bool y_flip = (sprite->flags & 0x40) != 0;
+    bool x_flip = (sprite->flags & 0x20) != 0;
+
+    uint8_t sprite_line = regs->lcdc_y + 16 - sprite->pos_y;
+    if (y_flip) {
+      uint8_t h = obj_height_is_16_bit(regs) ? 16 : 8;
+      sprite_line = h - sprite_line;
+    }
+
+    uint16_t line = decode_tile_line(tile, sprite_line);
+    if (x_flip) { line = flip_line(line); }
+
+    for (int j = 0; j < 8; ++j) {
+      int idx = sprite->pos_x - 8 + j;
+      if (idx < 0 | idx >= 160)
+        continue;
+
+      uint8_t color = get_pixel(line, j);
+      if (!color)
+        continue;
+
+      /* color | visibility | priority-bit */
+      buffer[idx] = palette[color] | (color << 2) | (sprite->flags & 0x80);
     }
   }
 }
 
-int mode_0_h_blank(lcd_t *lcd, cpu_t *bus) {
-  lcd_regs_t *regs = lcd->registers;
+static void
+combine_lines(uint8_t *background, uint8_t *sprites, uint8_t zero_color) {
+  for (int i = 0; i < 160; ++i) {
+    uint8_t sprite = sprites[i] & 3;
+    uint8_t visible = (sprites[i] >> 2) & 3;
+    bool priority = (sprites[i] & 0x80) != 0;
 
-  if (lcd->scan_line_counter >= 204) {
-    lcd->scan_line_counter -= 204;
-    set_mode(bus, regs, 2);
+    if (!visible)
+      continue;
 
-    render_line(lcd);
+    if (priority && (background[i] != zero_color))
+      continue;
+
+    background[i] = sprite;
+  }
+}
+
+static void draw_to_sdl_screen(SDL_Surface *surface, int ly, uint8_t *line) {
+  static const uint32_t to_sdl_color[] = {
+      0x00FFFFFF, 0x00AAAAAA, 0x00555555, 0x00000000
+  };
+  uint32_t *display = (uint32_t *) surface->pixels;
+  display += ly * 160;
+
+  for (int i = 0; i < 160; ++i)
+    display[i] = to_sdl_color[line[i]];
+}
+
+static void render_line(ppu_t *ppu) {
+  uint8_t background[160];
+  uint8_t sprites[160] = {0};
+
+  render_background_line(ppu, background);
+
+  if (obj_enabled(ppu->registers)) {
+    render_sprite_line(ppu, sprites);
+    combine_lines(background, sprites, ppu->registers->bg_palette & 3);
+  }
+
+  draw_to_sdl_screen(ppu->display, ppu->registers->lcdc_y, background);
+}
+
+static void lcd_new_line(ppu_t *ppu) {
+  /* switch to oam mode */
+  find_visible_sprites(ppu);
+  set_mode(ppu->interrupt_line, ppu->registers, 2);
+}
+
+int mode_0_h_blank(ppu_t *ppu) {
+  ppu_regs_t *regs = ppu->registers;
+
+  if (ppu->scan_line_counter >= 204) {
+    ppu->scan_line_counter -= 204;
+
+    lcd_new_line(ppu);
+    render_line(ppu);
 
     if (++regs->lcdc_y == 144) {
       regs->lcd_status += 1;
 
-      raise_interrupt(bus, INT_VBLANK);
-      set_mode(bus, regs, 1);
+      raise_interrupt(ppu->interrupt_line, INT_VBLANK);
+      set_mode(ppu->interrupt_line, regs, 1);
     }
   }
 
   return 0;
 }
 
-int mode_1_v_blank(lcd_t *lcd, cpu_t *bus) {
-  lcd_regs_t *regs = lcd->registers;
+int mode_1_v_blank(ppu_t *ppu) {
+  ppu_regs_t *regs = ppu->registers;
 
-  if (lcd->scan_line_counter >= 456) {
-    lcd->scan_line_counter -= 456;
+  if (ppu->scan_line_counter >= 456) {
+    ppu->scan_line_counter -= 456;
 
     if (++regs->lcdc_y == 154) {
+      lcd_new_line(ppu);
+      reset_beam(ppu);
       regs->lcdc_y = 0;
-      set_mode(bus, regs, 2);
-      reset_beam(lcd);
       return 1;
     }
   }
@@ -306,65 +355,56 @@ int mode_1_v_blank(lcd_t *lcd, cpu_t *bus) {
   return 0;
 }
 
-static void reset_beam(lcd_t *lcd) {
-  lcd->beam_position = reset_iterator(lcd->registers, lcd->vram);
-}
+int mode_2_search_oam(ppu_t *ppu) {
+  ppu_regs_t *regs = ppu->registers;
 
-int mode_2_search_oam(lcd_t *lcd, cpu_t *bus) {
-  lcd_regs_t *regs = lcd->registers;
-
-  if (lcd->scan_line_counter >= 80) {
-    lcd->scan_line_counter -= 80;
-    set_mode(bus, regs, 3);
+  if (ppu->scan_line_counter >= 80) {
+    ppu->scan_line_counter -= 80;
+    set_mode(ppu->interrupt_line, regs, 3);
   }
 
   return 0;
 }
 
-int mode_3_transfer_data(lcd_t *lcd, cpu_t *bus) {
-  lcd_regs_t *regs = lcd->registers;
+int mode_3_transfer_data(ppu_t *ppu) {
+  ppu_regs_t *regs = ppu->registers;
 
-  if (lcd->scan_line_counter >= 172) {
-    lcd->scan_line_counter -= 172;
+  if (ppu->scan_line_counter >= 172) {
+    ppu->scan_line_counter -= 172;
 
     if (check_coincidence(regs)) {
-      raise_interrupt(bus, INT_LCD_STAT);
+      raise_interrupt(ppu->interrupt_line, INT_LCD_STAT);
     }
 
-    set_mode(bus, regs, 0);
+    set_mode(ppu->interrupt_line, regs, 0);
   }
 
   return 0;
 }
 
-int (*const run_mode[])(lcd_t *lcd, cpu_t *bus) = {
+int (*const run_mode[])(ppu_t *ppu) = {
     mode_0_h_blank, mode_1_v_blank, mode_2_search_oam, mode_3_transfer_data
 };
 
 typedef struct cpu cpu_t;
 /*
  * Updates the LCD inner state. Returns true if the screen should be updated.
- * .cpu         The game boys cpu.
  * .cycles      The amount of cpu cycles passed since the last update.
  */
-bool run_lcd(cpu_t *cpu, uint8_t cycles) {
-  lcd_t *lcd = cpu->lcd;
-  lcd_regs_t *regs = lcd->registers;
+bool run_lcd(ppu_t *ppu, uint8_t cycles) {
+  ppu_regs_t *regs = ppu->registers;
   bool update_screen = false;
 
   if (!lcd_enabled(regs)) {
-    lcd->scan_line_counter = 456;
+    ppu->scan_line_counter = 456;
     regs->lcdc_y = 0x99;
 
-    set_mode(cpu, regs, 1);
+    set_mode(ppu->interrupt_line, regs, 1);
     return false;
   }
 
-  lcd->scan_line_counter += cycles;
-  if (run_mode[get_mode(regs)](lcd, cpu)) {
-    if (obj_enabled(lcd->registers))
-      draw_sprites(lcd, lcd->display->pixels);
-
+  ppu->scan_line_counter += cycles;
+  if (run_mode[get_mode(regs)](ppu)) {
     update_screen = true;
   }
 

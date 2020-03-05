@@ -36,9 +36,11 @@ void mmu_register_mem_handler(mmu_t *mmu, mem_handler_t *m, as_handle_t h);
 
 void mmu_dma_transfer(mmu_t *mmu, gb_address_t from, gb_address_t to);
 
-typedef struct lcd_display lcd_t;
+typedef struct pixel_processing_unit ppu_t;
 
-lcd_t *lcd_new(mmu_t *mmu, uint8_t *vram, SDL_Surface *surface);
+typedef struct cpu cpu_t;
+ppu_t *
+ppu_new(mmu_t *mmu, cpu_t *interrupt_line, uint8_t *vram, SDL_Surface *surface);
 
-void lcd_delete(lcd_t *lcd);
+void ppu_delete(ppu_t *ppu);
 

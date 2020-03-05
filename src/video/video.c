@@ -21,62 +21,62 @@ enum LCDCStatus {
   CoincidenceInterruptEnabled = 64
 };
 
-bool get_bg_data_select(lcd_regs_t *regs) {
+bool get_bg_data_select(ppu_regs_t *regs) {
   return (regs->lcd_control & BGWindowTileDataSelect) != 0;
 }
 
-gb_address_t get_bg_data_start_offset(lcd_regs_t *regs) {
+gb_address_t get_bg_data_start_offset(ppu_regs_t *regs) {
   return (uint16_t) (
       get_bg_data_select(regs) ? 0 : 0x800);
 }
 
-bool window_enabled(lcd_regs_t *regs) {
+bool window_enabled(ppu_regs_t *regs) {
   return regs->lcd_control & WindowDisplayEnable;
 }
 
-bool get_bg_display_select(lcd_regs_t *regs) {
+bool get_bg_display_select(ppu_regs_t *regs) {
   return (regs->lcd_control & BGTileMapDisplaySelect) != 0;
 }
 
-gb_address_t get_bg_display_start_offset(lcd_regs_t *regs) {
+gb_address_t get_bg_display_start_offset(ppu_regs_t *regs) {
   return (uint16_t) (get_bg_display_select(regs) ? 0x1C00 : 0x1800);
 }
 
-gb_address_t get_window_display_start_offset(lcd_regs_t *regs) {
+gb_address_t get_window_display_start_offset(ppu_regs_t *regs) {
   return (uint16_t) (
       regs->lcd_control & WindowTileMapDisplaySelect ? 0x1C00 : 0x1800);
 }
 
-gb_address_t get_sprite_data_start_offset(lcd_regs_t *regs) {
+gb_address_t get_sprite_data_start_offset(ppu_regs_t *regs) {
   return (uint16_t) 0;
 }
 
-bool obj_height_is_16_bit(lcd_regs_t *regs) {
+bool obj_height_is_16_bit(ppu_regs_t *regs) {
   return regs->lcd_control & OBJSize;
 }
 
-bool lcd_enabled(lcd_regs_t *regs) {
+bool lcd_enabled(ppu_regs_t *regs) {
   return regs->lcd_control & LCDDisplayEnable;
 }
 
-void set_mode(cpu_t *cpu, lcd_regs_t *regs, uint8_t mode) {
+void set_mode(cpu_t *interrupt_line, ppu_regs_t *regs, uint8_t mode) {
   regs->lcd_status &= ~LCDMode;
   regs->lcd_status |= mode;
 
   switch (mode) {
     case 0:
       if (regs->lcd_status & HBlankInterruptEnabled) {
-        raise_interrupt(cpu, INT_LCD_STAT);
+        raise_interrupt(interrupt_line, INT_LCD_STAT);
       }
       break;
     case 1:
       if (regs->lcd_status & VBlankInterruptEnabled) {
-        raise_interrupt(cpu, INT_LCD_STAT);
+        raise_interrupt(interrupt_line, INT_LCD_STAT);
       }
       break;
     case 2:
       if (regs->lcd_status & OAMInterruptEnabled) {
-        raise_interrupt(cpu, INT_LCD_STAT);
+        raise_interrupt(interrupt_line, INT_LCD_STAT);
       }
       break;
     default:
@@ -84,15 +84,15 @@ void set_mode(cpu_t *cpu, lcd_regs_t *regs, uint8_t mode) {
   }
 }
 
-int get_mode(lcd_regs_t *regs) {
+int get_mode(ppu_regs_t *regs) {
   return regs->lcd_status & LCDMode;
 }
 
-bool obj_enabled(lcd_regs_t *regs) {
+bool obj_enabled(ppu_regs_t *regs) {
   return regs->lcd_control & OBJDisplayEnable;
 }
 
-bool check_coincidence(lcd_regs_t *regs) {
+bool check_coincidence(ppu_regs_t *regs) {
   if (regs->lcdc_y == regs->ly_compare)
     regs->lcd_status |= CoincidenceFlag;
   else

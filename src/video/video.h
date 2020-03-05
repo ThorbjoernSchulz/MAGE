@@ -19,30 +19,30 @@ typedef struct {
   uint8_t obj_palette_1;
   uint8_t window_y;
   uint8_t window_x;
-} lcd_regs_t;
+} ppu_regs_t;
 
-bool get_bg_data_select(lcd_regs_t *regs);
+bool get_bg_data_select(ppu_regs_t *regs);
 
-gb_address_t get_bg_data_start_offset(lcd_regs_t *regs);
+gb_address_t get_bg_data_start_offset(ppu_regs_t *regs);
 
-bool get_bg_display_select(lcd_regs_t *regs);
+bool get_bg_display_select(ppu_regs_t *regs);
 
-gb_address_t get_bg_display_start_offset(lcd_regs_t *regs);
+gb_address_t get_bg_display_start_offset(ppu_regs_t *regs);
 
-gb_address_t get_window_display_start_offset(lcd_regs_t *regs);
+gb_address_t get_window_display_start_offset(ppu_regs_t *regs);
 
-gb_address_t get_sprite_data_start_offset(lcd_regs_t *regs);
+gb_address_t get_sprite_data_start_offset(ppu_regs_t *regs);
 
-bool obj_height_is_16_bit(lcd_regs_t *regs);
+bool obj_height_is_16_bit(ppu_regs_t *regs);
 
-bool window_enabled(lcd_regs_t *regs);
+bool window_enabled(ppu_regs_t *regs);
 
-bool lcd_enabled(lcd_regs_t *regs);
+bool lcd_enabled(ppu_regs_t *regs);
 
-bool obj_enabled(lcd_regs_t *regs);
+bool obj_enabled(ppu_regs_t *regs);
 
-void set_mode(cpu_t *cpu, lcd_regs_t *regs, uint8_t mode);
+void set_mode(cpu_t *interrupt_line, ppu_regs_t *regs, uint8_t mode);
 
-int get_mode(lcd_regs_t *regs);
+int get_mode(ppu_regs_t *regs);
 
-bool check_coincidence(lcd_regs_t *regs);
+bool check_coincidence(ppu_regs_t *regs);

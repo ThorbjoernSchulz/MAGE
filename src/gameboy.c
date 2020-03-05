@@ -62,14 +62,14 @@ gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
     return 0;
   }
 
-  lcd_t *lcd = lcd_new(mmu, game_boy->vram, surface);
-  if (!lcd) {
+  ppu_t *ppu = ppu_new(mmu, &game_boy->cpu, game_boy->vram, surface);
+  if (!ppu) {
     free(game_boy);
     free(mmu);
     return 0;
   }
 
-  cpu_init(&game_boy->cpu, mmu, lcd);
+  cpu_init(&game_boy->cpu, mmu, ppu);
 
   input_t *input = input_new(&game_boy->cpu, mmu);
   if (!input) {
@@ -188,7 +188,7 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
   while (true) {
     uint8_t cycles_spent = update_cpu_state(&gb->cpu, debugger);
 
-    if (!run_lcd(&gb->cpu, cycles_spent))
+    if (!run_lcd(gb->cpu.ppu, cycles_spent))
       continue;
 
     if (handle_button_press(gb->control_pad)) {
