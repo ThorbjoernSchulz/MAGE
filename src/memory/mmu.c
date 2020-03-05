@@ -133,8 +133,6 @@ static DEF_MEM_READ(internal_read) {
         /* ony bit 5, 6 can be read */
         byte &= 0x60;
         break;
-      case 0xFF41:
-        byte |= 0x80;
       default:
         break;
     }
@@ -152,22 +150,10 @@ static DEF_MEM_WRITE(internal_write) {
     if (address >= 0xFEA0 && address <= 0xFEFF)
       return;
 
-    if (address == 0xFF04 || address == 0xFF44) {
-      /* write to DIV or LCY */
+    if (address == 0xFF04) {
+      /* write to DIV */
       value = 0;
     }
-
-    if (address == 0xFF46) {
-      /* DMA transfer */
-      gb_address_t source = value << 8;
-      for (int i = 0; i < 0xA0; ++i) {
-        uint8_t byte = mmu_read(mmu, (gb_address_t) (source + i));
-        mmu_write(mmu, (gb_address_t) (0xFE00 + i), byte);
-      }
-
-      return;
-    }
-
     mmu->high_memory[address - 0xFE00] = value;
     return;
   }
@@ -196,10 +182,11 @@ mem_tuple_t mmu_map_register(mmu_t *mmu, gb_address_t addr) {
 mem_tuple_t mmu_map_memory(mmu_t *mmu, uint16_t start, uint16_t end) {
   assert(start >= 0xFE00 && "Only high addresses can be mapped manually.");
   assert(start <= end);
-  start -= 0xFE00; end -= 0xFE00;
+  start -= 0xFE00;
+  end -= 0xFE00;
   __mmu_do_map(mmu, start, end + 1, mmu->address_space.current_handle);
-  mem_tuple_t ret = { mmu->high_memory + start,
-                      mmu->address_space.current_handle++ };
+  mem_tuple_t ret = {mmu->high_memory + start,
+                     mmu->address_space.current_handle++};
   return ret;
 }
 
@@ -255,7 +242,10 @@ void mmu_delete(mmu_t *mmu) {
 
 static mem_handler_t *mmu_get_mem_handler(mmu_t *mmu, gb_address_t address) {
   switch (address & 0xE000) {
-    case 0x0000: case 0x2000: case 0x4000: case 0x6000:
+    case 0x0000:
+    case 0x2000:
+    case 0x4000:
+    case 0x6000:
       return mmu->address_space.ROM_handler;
     case 0x8000:
       return mmu->address_space.VRAM_handler;
@@ -303,13 +293,15 @@ void enable_boot_rom(mmu_t *mmu) {
   mmu->read = mmu_boot_read;
 }
 
-void *mmu_get_lcd_regs(mmu_t *mmu) {
-  return (void *) (&mmu->high_memory[0x140]);
-}
-
 void mmu_clean(mmu_t *mmu) {
   memset(mmu->internal_ram, 0, sizeof(mmu->internal_ram));
   memset(mmu->high_memory, 0, sizeof(mmu->high_memory));
+}
+
+void mmu_dma_transfer(mmu_t *mmu, gb_address_t from, gb_address_t to) {
+  for (int i = 160; i--;) {
+    mmu_write(mmu, to + i, mmu_read(mmu, from + i));
+  }
 }
 
 static void
@@ -353,8 +345,4 @@ void mmu_init_after_boot(mmu_t *mmu) {
   mmu_direct_high_mem_write(mmu, 0xFF00, 0xFF);
   mmu_direct_high_mem_write(mmu, 0xFF41, 0x85);
   mmu_direct_high_mem_write(mmu, 0xFF44, 0x91);
-}
-
-uint8_t *mmu_get_oam_ram(mmu_t *mmu) {
-  return mmu->high_memory;
 }

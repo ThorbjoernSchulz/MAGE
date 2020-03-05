@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <assert.h>
 #include <SDL2/SDL_surface.h>
 #include "src/cpu/interrupts.h"
 #include "src/memory/mmu.h"
@@ -12,12 +11,22 @@
 #include "video.h"
 #include "iterator.h"
 
+static void reset_beam(lcd_t *lcd);
+
+#define REG_BASE 0xFF40
+#define OAM_BASE 0xFE00
+
 typedef struct oam_entry {
   uint8_t pos_y;
   uint8_t pos_x;
   uint8_t tile_number;
   uint8_t flags;
 } oam_entry_t;
+
+typedef struct lcd_memory_handler {
+  mem_handler_t base;
+  lcd_t *lcd;
+} lcd_mem_handler_t;
 
 typedef struct lcd_display {
   uint8_t *vram;
@@ -26,21 +35,70 @@ typedef struct lcd_display {
   SDL_Surface *display;
   camera_iterator_t beam_position;
   uint16_t scan_line_counter;
+
+  lcd_mem_handler_t handler;
+  mmu_t *mmu; /* for DMA transfer */
 } lcd_t;
 
-static void reset_beam(lcd_t *lcd);
+DEF_MEM_READ(lcd_read) {
+  lcd_mem_handler_t *handler = (lcd_mem_handler_t *) this;
 
-static void decode_palette(uint8_t reg, uint32_t *const palette);
+  if (address < 0xFEA0) {
+    /* OAM memory */
+    return ((uint8_t *)handler->lcd->oam)[address - OAM_BASE];
+  }
 
-static void draw_sprites(lcd_t *lcd, uint32_t *screen_buffer);
+  uint8_t *start = (uint8_t *) handler->lcd->registers;
+  uint8_t byte = start[address - REG_BASE];
 
-static int sprite_cmp(const void *_a, const void *_b);
+  switch (address) {
+    case 0xFF41:
+      byte |= 0x80;
+      break;
 
-static void
-draw_sprite(lcd_t *lcd, uint32_t *screen_buffer, oam_entry_t *sprite,
-            uint32_t *palette0, uint32_t *palette1);
+    default:
+      break;
+  }
 
-void *mmu_get_lcd_regs(mmu_t *mmu);
+  return byte;
+}
+
+DEF_MEM_WRITE(lcd_write) {
+  lcd_mem_handler_t *handler = (lcd_mem_handler_t *) this;
+
+  if (address < 0xFEA0) {
+    /* OAM memory */
+    ((uint8_t *)handler->lcd->oam)[address - OAM_BASE] = value;
+
+    return;
+  }
+
+  uint8_t *start = (uint8_t *) handler->lcd->registers;
+  uint8_t current_value = start[address - REG_BASE];
+
+  switch (address) {
+    case 0xFF41:
+      /* the last three bits are read only */
+      value = (value & ~7) | (current_value & 7);
+      break;
+
+    case 0xFF44:
+      /* write to LCY */
+      value = 0;
+      break;
+
+    case 0xFF46: {
+      /* DMA transfer to OAM */
+      gb_address_t source = value << 8;
+      mmu_dma_transfer(handler->lcd->mmu, source, OAM_BASE);
+      return;
+    }
+
+    default:
+      break;
+  }
+  start[address - 0xFF40] = value;
+}
 
 lcd_t *lcd_new(mmu_t *mmu, uint8_t *vram, SDL_Surface *surface) {
   lcd_t *lcd = calloc(1, sizeof(lcd_t));
@@ -48,10 +106,22 @@ lcd_t *lcd_new(mmu_t *mmu, uint8_t *vram, SDL_Surface *surface) {
     logging_std_error();
     return 0;
   }
+  lcd->mmu = mmu;
+
+  lcd->handler.base.read = lcd_read;
+  lcd->handler.base.write = lcd_write;
+  lcd->handler.base.destroy = mem_handler_stack_destroy;
+  lcd->handler.lcd = lcd;
+
+  mem_tuple_t tuple = mmu_map_memory(mmu, OAM_BASE, OAM_BASE + 160);
+  lcd->oam = (oam_entry_t *)tuple.memory;
+  mmu_register_mem_handler(mmu, (mem_handler_t *) &lcd->handler, tuple.handle);
+
+  tuple = mmu_map_memory(mmu, REG_BASE, REG_BASE + sizeof(lcd_regs_t) - 1);
+  lcd->registers = (lcd_regs_t *) tuple.memory;
+  mmu_register_mem_handler(mmu, (mem_handler_t *) &lcd->handler, tuple.handle);
 
   lcd->vram = vram;
-  lcd->oam = (oam_entry_t *) mmu_get_oam_ram(mmu);
-  lcd->registers = mmu_get_lcd_regs(mmu);
   lcd->display = surface;
   lcd->scan_line_counter = 456;
   reset_beam(lcd);
@@ -62,6 +132,16 @@ lcd_t *lcd_new(mmu_t *mmu, uint8_t *vram, SDL_Surface *surface) {
 void lcd_delete(lcd_t *lcd) {
   free(lcd);
 }
+
+static void decode_palette(uint8_t reg, uint32_t *const palette);
+
+static void draw_sprites(lcd_t *lcd, uint32_t *screen_buffer);
+
+static int sprite_cmp(const void *_a, const void *_b);
+
+static void
+draw_sprite(lcd_t *lcd, uint32_t *screen_buffer, oam_entry_t *sprite,
+            uint32_t *palette0, uint32_t *palette1);
 
 static const uint32_t to_sdl_color[] = {
     0x00FFFFFF, 0x00AAAAAA, 0x00555555, 0x00000000
@@ -94,8 +174,9 @@ static void render_line(lcd_t *lcd) {
   /* compute start and end of the line and then draw it */
   int buffer_index = line_no * 160;
   int end_index = buffer_index + 160;
-  while (buffer_index != end_index)
+  while (buffer_index != end_index) {
     screen_buffer[buffer_index++] = next_pixel(it, find_tile, palette);
+  }
 }
 
 static void draw_sprites(lcd_t *lcd, uint32_t *screen_buffer) {

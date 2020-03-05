@@ -7,7 +7,6 @@ typedef struct mmu_t mmu_t;
 
 typedef uint16_t gb_address_t;
 typedef struct memory_handler mem_handler_t;
-
 typedef uint8_t as_handle_t;
 
 mmu_t *mmu_new(void);
@@ -35,7 +34,7 @@ void mmu_assign_extram_handler(mmu_t *mmu, mem_handler_t *handler);
 
 void mmu_register_mem_handler(mmu_t *mmu, mem_handler_t *m, as_handle_t h);
 
-uint8_t *mmu_get_oam_ram(mmu_t *mmu);
+void mmu_dma_transfer(mmu_t *mmu, gb_address_t from, gb_address_t to);
 
 typedef struct lcd_display lcd_t;
 
