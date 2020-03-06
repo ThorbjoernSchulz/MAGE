@@ -1,6 +1,7 @@
 #pragma once
 
-#include <stdbool.h>
-#include "input.h"
+#include "input_controller.h"
+typedef struct mmu_t mmu_t;
+typedef struct cpu cpu_t;
 
-bool handle_button_press(input_t *input);
+input_ctrl_t *sdl_joy_pad_new(mmu_t *mmu, cpu_t *interrupt_line);

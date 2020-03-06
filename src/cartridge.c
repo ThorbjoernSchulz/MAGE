@@ -10,6 +10,47 @@
 
 void die(const char *s);
 
+typedef struct save_game save_game_t;
+
+typedef struct save_game {
+  const char *file_name;
+  void (*save)(save_game_t *);
+  void (*load)(save_game_t *);
+
+  cartridge_t *cart;
+} save_game_t;
+
+static void save_game_load(save_game_t *this);
+
+static void save_game_save(save_game_t *this);
+
+static void save_game_nop(save_game_t *this) {}
+
+save_game_t *save_game_new(const char *file_name, cartridge_t *cart) {
+  save_game_t *sg = calloc(1, sizeof(save_game_t));
+  if (!sg) return 0;
+
+  sg->cart = cart;
+
+  sg->file_name = file_name;
+  if (file_name) {
+    sg->save = save_game_save;
+    sg->load = save_game_load;
+  }
+  else {
+    sg->save = save_game_nop;
+    sg->load = save_game_nop;
+  }
+
+  return sg;
+}
+
+void save_game_delete(save_game_t *this) {
+  /* save upon deletion */
+  this->save(this);
+  free(this);
+}
+
 typedef struct __attribute__((packed)) cartridge_header_t {
   uint8_t __[52];
   uint8_t game_title[15];
@@ -30,8 +71,7 @@ typedef struct cartridge_mem_handler_t {
 typedef struct cartridge_t {
   cartridge_header_t *header;
   const char *game_file_name;
-  const char *save_file_name;
-  char save_file_name_buffer[FILENAME_MAX];
+  save_game_t *save_game;
 
   uint8_t *rom_memory;
   uint8_t *ram_memory;
@@ -53,28 +93,32 @@ static size_t cartridge_calculate_ram_size(uint8_t ram_size);
 #define upper_bank_no(cart) (uint8_t) ((cart)->selected_rom_bank & 0xE0)
 #define lower_bank_no(cart) (uint8_t) ((cart)->selected_rom_bank & 0x1F)
 
-void cartridge_save_game(cartridge_t *cart) {
-  FILE *file = fopen(cart->save_file_name, "w");
+static void save_game_load(save_game_t *this) {
+  FILE *file = fopen(this->file_name, "r");
   if (!file) {
     logging_warning("Save game could not be loaded");
     return;
   }
 
+  cartridge_t *cart = this->cart;
   size_t size = cartridge_calculate_ram_size(cart->header->ram_size);
-  fwrite(cart->ram_memory, size, 1, file);
+  fread(cart->ram_memory, size, 1, file);
 
   fclose(file);
 }
 
-void cartridge_load_save_game(cartridge_t *cart) {
-  FILE *file = fopen(cart->save_file_name, "r");
+static void save_game_save(save_game_t *this) {
+  FILE *file = fopen(this->file_name, "w");
   if (!file) {
     logging_warning("Save game could not be loaded");
     return;
   }
 
+  logging_message("Saving game.");
+
+  cartridge_t *cart = this->cart;
   size_t size = cartridge_calculate_ram_size(cart->header->ram_size);
-  fread(cart->ram_memory, size, 1, file);
+  fwrite(cart->ram_memory, size, 1, file);
 
   fclose(file);
 }
@@ -238,7 +282,7 @@ static void cartridge_mem_handler_init(cartridge_t *c) {
 }
 
 static void print_running_message(cartridge_header_t *header) {
-  fprintf(stderr, "Running: %15s\n", header->game_title);
+  fprintf(stderr, "Log: Running: %15s\n", header->game_title);
 }
 
 static ssize_t get_file_size(FILE *file) {
@@ -285,19 +329,21 @@ static size_t cartridge_calculate_ram_size(uint8_t ram_size) {
   return ((size_t) 1 << (ram_size * 2 - 1)) * 1024;
 }
 
+void cartridge_delete(cartridge_t *c) {
+  /* deleting the save game implicitly saves the game,
+   * so this needs to be deleted first */
+  save_game_delete(c->save_game);
+
+  free(c->rom_memory);
+  if (c->ram_memory) free(c->ram_memory);
+  free(c);
+}
+
 static uint8_t *cartridge_allocate_ram(uint8_t ram_size) {
   return malloc(cartridge_calculate_ram_size(ram_size));
 }
 
-static void fill_save_game_name(cartridge_t *cart) {
-  size_t len = sizeof(cart->save_file_name_buffer) - 1;
-  char *end = stpncpy(cart->save_file_name_buffer, cart->game_file_name, len);
-  if (end - cart->save_file_name_buffer + 5 >= FILENAME_MAX)
-    die("The save file name is too long. Consider a relative path.");
-  strcpy(end, ".save");
-}
-
-cartridge_t *cartridge_new(const char *game_path, const char *save_path) {
+cartridge_t *cartridge_new(const char *game_path, const char *save_file) {
   cartridge_t *cart = 0;
   uint8_t *memory = 0;
 
@@ -321,14 +367,12 @@ cartridge_t *cartridge_new(const char *game_path, const char *save_path) {
   }
 
   cart->game_file_name = game_path;
-  if (save_path)
-    cart->save_file_name = save_path;
-  else {
-    fill_save_game_name(cart);
-    cart->save_file_name = cart->save_file_name_buffer;
-  }
 
-  cartridge_load_save_game(cart);
+  cart->save_game = save_game_new(save_file, cart);
+  if (!cart->save_game) goto fail;
+
+  /* load save game into ram */
+  cart->save_game->load(cart->save_game);
 
   cartridge_mem_handler_init(cart);
 
@@ -338,6 +382,8 @@ cartridge_t *cartridge_new(const char *game_path, const char *save_path) {
 
 fail:
   free(memory);
+  if (cart)
+    free(cart->save_game);
   free(cart);
   return 0;
 }
@@ -346,8 +392,4 @@ mem_handler_t *cartridge_get_memory_handler(cartridge_t *cart) {
   return (mem_handler_t *) &cart->internal_mem_handler;
 }
 
-void cartridge_delete(cartridge_t *c) {
-  free(c->rom_memory);
-  if (c->ram_memory) free(c->ram_memory);
-  free(c);
-}
+void cartridge_delete(cartridge_t *c);

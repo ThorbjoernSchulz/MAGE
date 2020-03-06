@@ -17,7 +17,7 @@ file(GLOB INTERNA_SRC ${PROJECT_SOURCE_DIR}/cpu/*.c
                       ${PROJECT_SOURCE_DIR}/cartridge.c
                       ${PROJECT_SOURCE_DIR}/logging.c)
 
-add_library(Interna STATIC ${INTERNA_SRC})
+add_library(Interna STATIC ${INTERNA_SRC} src/video/display.h src/video/sdl_display.c src/video/sdl_display.h src/input/input_controller.h)
 
 add_executable(GameBoy src/main.c src/gameboy.h src/gameboy.c)
 

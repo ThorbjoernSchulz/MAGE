@@ -7,12 +7,13 @@
 #include <cpu/cpu.h>
 #include <memory/mmu.h>
 #include <memory/memory_handler.h>
+#include <video/ppu.h>
+#include <video/display.h>
 #include <input/sdl_input.h>
 
 #include "gameboy.h"
 #include "cartridge.h"
 
-#include <SDL2/SDL.h>
 
 void die(const char *s);
 
@@ -38,8 +39,9 @@ static mem_handler_t *null_handler_create(void) {
 
 typedef struct game_boy_t {
   cpu_t cpu;
-  input_t *control_pad;
+  input_ctrl_t *joy_pad;
   cartridge_t *cartridge;
+  display_t *display;
 
   uint8_t vram[8 * 1024];
 } game_boy_t;
@@ -51,7 +53,7 @@ typedef struct game_boy_t {
  *                  runs. The boot file has to contain 256 bytes of code.
  * .surface         The structure the LCD content is drawn on.
  */
-gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
+gb_t game_boy_new(const char *boot_file, display_t *display) {
   game_boy_t *game_boy = calloc(1, sizeof(game_boy_t));
   if (!game_boy) return 0;
 
@@ -61,7 +63,7 @@ gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
     return 0;
   }
 
-  ppu_t *ppu = ppu_new(mmu, &game_boy->cpu, game_boy->vram, surface);
+  ppu_t *ppu = ppu_new(mmu, &game_boy->cpu, game_boy->vram, display);
   if (!ppu) {
     free(game_boy);
     free(mmu);
@@ -70,12 +72,14 @@ gb_t game_boy_new(const char *boot_file, SDL_Surface *surface) {
 
   cpu_init(&game_boy->cpu, mmu, ppu);
 
-  input_t *input = input_new(&game_boy->cpu, mmu);
+  input_ctrl_t *input = sdl_joy_pad_new(mmu, &game_boy->cpu);
   if (!input) {
     cpu_delete(&game_boy->cpu);
     return 0;
   }
-  game_boy->control_pad = input;
+  game_boy->joy_pad = input;
+
+  game_boy->display = display;
 
   set_up_vram(&game_boy->cpu, game_boy->vram);
 
@@ -146,9 +150,9 @@ void game_boy_entry_after_boot(gb_t gb) {
 }
 
 void game_boy_insert_game(gb_t gb, const char *game_path,
-                          const char *save_path) {
+                          const char *save_file) {
   if (gb->cartridge) cartridge_delete(gb->cartridge);
-  gb->cartridge = cartridge_new(game_path, save_path);
+  gb->cartridge = cartridge_new(game_path, save_file);
 
   mmu_t *mmu = gb->cpu.mmu;
 
@@ -166,7 +170,7 @@ void game_boy_insert_game(gb_t gb, const char *game_path,
  * .data        The structure the LCD draws on.
  * .window      The window that displays the LCD content to the screen.
  */
-void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
+void game_boy_run(gb_t gb) {
   /* if no cartridge is present, set all the related memory to 0 */
   if (!gb->cartridge) {
     mem_handler_t *handler = null_handler_create();
@@ -190,23 +194,17 @@ void game_boy_run(gb_t gb, SDL_Surface *data, SDL_Window *window) {
     if (!ppu_update(gb->cpu.ppu, cycles_spent))
       continue;
 
-    if (handle_button_press(gb->control_pad)) {
+    if (gb->joy_pad->handle_button_press(gb->joy_pad)) {
       /* quit game */
       break;
     }
 
-    /* draw to screen, scaled up */
-    if (SDL_BlitScaled(data, NULL, SDL_GetWindowSurface(window), NULL)) {
-      die(SDL_GetError());
-    }
-    SDL_UpdateWindowSurface(window);
+    /* draw to screen*/
+    gb->display->show(gb->display);
 
     wait_until_next_frame((double) (clock() - start_t) / CLOCKS_PER_SEC);
     start_t = clock();
   }
-
-  /* save the game before exit */
-  cartridge_save_game(gb->cartridge);
 }
 
 static void wait_until_next_frame(double time_spent) {
@@ -217,7 +215,7 @@ static void wait_until_next_frame(double time_spent) {
 
 void game_boy_delete(gb_t gb) {
   cpu_delete(&(gb->cpu));
-  input_delete(gb->control_pad);
+  gb->joy_pad->delete(gb->joy_pad);
   cartridge_delete(gb->cartridge);
   free(gb);
 }

@@ -7,14 +7,10 @@
 #include "ppu.h"
 #include "video.h"
 #include "iterator.h"
+#include "display.h"
 
 #define REG_BASE 0xFF40
 #define OAM_BASE 0xFE00
-
-#define get_pixel(tile_line, n) (((tile_line) >> (14 - n * 2)) & 3)
-#define flip_line_8bit(line) (((line) & 3) << 6) | (((line) &  12) << 2)\
-                                                 | (((line) &  48) >> 2)\
-                                                 | (((line) & 192) >> 6)
 
 static void decode_palette(uint8_t reg, uint8_t *const palette) {
   palette[0] = (reg >> 0) & 0x3;
@@ -39,7 +35,7 @@ typedef struct pixel_processing_unit {
   uint8_t *vram;
   oam_entry_t *oam;
   ppu_regs_t *registers;
-  SDL_Surface *display;
+  display_t *display;
 
   mmu_t *mmu; /* for DMA transfer */
   cpu_t *interrupt_line;
@@ -54,67 +50,67 @@ typedef struct pixel_processing_unit {
 } ppu_t;
 
 DEF_MEM_READ(ppu_read) {
-    ppu_mem_handler_t *handler = (ppu_mem_handler_t *) this;
-    ppu_regs_t *registers = handler->ppu->registers;
+  ppu_mem_handler_t *handler = (ppu_mem_handler_t *) this;
+  ppu_regs_t *registers = handler->ppu->registers;
 
-    if (address < 0xFEA0) {
-      /* OAM memory */
-      if (get_mode(registers) > 1)
-        return 0xFF;
+  if (address < 0xFEA0) {
+    /* OAM memory */
+    if (get_mode(registers) > 1)
+      return 0xFF;
 
-      return ((uint8_t *) handler->ppu->oam)[address - OAM_BASE];
-    }
+    return ((uint8_t *) handler->ppu->oam)[address - OAM_BASE];
+  }
 
-    uint8_t *start = (uint8_t *) registers;
-    uint8_t byte = start[address - REG_BASE];
+  uint8_t *start = (uint8_t *) registers;
+  uint8_t byte = start[address - REG_BASE];
 
-    switch (address) {
-      case 0xFF41:
-        byte |= 0x80;
+  switch (address) {
+    case 0xFF41:
+      byte |= 0x80;
       break;
 
-      default:
-        break;
-    }
+    default:
+      break;
+  }
 
-    return byte;
+  return byte;
 }
 
 DEF_MEM_WRITE(ppu_write) {
-    ppu_mem_handler_t *handler = (ppu_mem_handler_t *) this;
-    ppu_regs_t *registers = handler->ppu->registers;
+  ppu_mem_handler_t *handler = (ppu_mem_handler_t *) this;
+  ppu_regs_t *registers = handler->ppu->registers;
 
-    if (address < 0xFEA0) {
-      /* OAM memory */
-      ((uint8_t *) handler->ppu->oam)[address - OAM_BASE] = value;
+  if (address < 0xFEA0) {
+    /* OAM memory */
+    ((uint8_t *) handler->ppu->oam)[address - OAM_BASE] = value;
+    return;
+  }
+  uint8_t *start = (uint8_t *) registers;
+
+  uint8_t current_value = start[address - REG_BASE];
+
+  switch (address) {
+    case 0xFF41:
+      /* the last three bits are read only */
+      value = (value & ~7) | (current_value & 7);
+      break;
+
+    case 0xFF44:
+      /* write to LCY */
+      value = 0;
+      break;
+
+    case 0xFF46: {
+      /* DMA transfer to OAM */
+      gb_address_t source = value << 8;
+      mmu_dma_transfer(handler->ppu->mmu, source, OAM_BASE);
       return;
     }
-    uint8_t *start = (uint8_t *) registers;
 
-    uint8_t current_value = start[address - REG_BASE];
-
-    switch (address) {
-      case 0xFF41:
-        /* the last three bits are read only */
-        value = (value & ~7) | (current_value & 7);
+    default:
       break;
-
-      case 0xFF44:
-        /* write to LCY */
-        value = 0;
-      break;
-
-      case 0xFF46: {
-        /* DMA transfer to OAM */
-        gb_address_t source = value << 8;
-        mmu_dma_transfer(handler->ppu->mmu, source, OAM_BASE);
-        return;
-      }
-
-      default:
-        break;
-    }
-    start[address - 0xFF40] = value;
+  }
+  start[address - 0xFF40] = value;
 }
 
 static void reset_beam(ppu_t *ppu) {
@@ -122,7 +118,7 @@ static void reset_beam(ppu_t *ppu) {
 }
 
 ppu_t *ppu_new(mmu_t *mmu, cpu_t *interrupt_line, uint8_t *vram,
-               SDL_Surface *surface) {
+               display_t *display) {
   ppu_t *ppu = calloc(1, sizeof(ppu_t));
   if (!ppu) {
     logging_std_error();
@@ -145,7 +141,7 @@ ppu_t *ppu_new(mmu_t *mmu, cpu_t *interrupt_line, uint8_t *vram,
   mmu_register_mem_handler(mmu, (mem_handler_t *) &ppu->handler, tuple.handle);
 
   ppu->vram = vram;
-  ppu->display = surface;
+  ppu->display = display;
   ppu->scan_line_counter = 456;
   reset_beam(ppu);
 
@@ -168,7 +164,7 @@ static int sprite_cmp(const void *_a, const void *_b) {
   return a->pos_x < b->pos_x ? -1 : 1;
 }
 
-void find_visible_sprites(ppu_t *ppu) {
+static void find_visible_sprites(ppu_t *ppu) {
   /* which sprites are visible at all? */
   ppu->num_visible_sprites = 0;
   ppu_regs_t *regs = ppu->registers;
@@ -196,7 +192,6 @@ static void render_background_line(ppu_t *ppu, uint8_t *buffer) {
 
   camera_iterator_t *it = &ppu->beam_position;
   ppu_regs_t *regs = ppu->registers;
-  int line_no = regs->lcdc_y;
 
   update_scrolling(it, regs);
 
@@ -236,7 +231,7 @@ static void render_sprite_line(ppu_t *ppu, uint8_t *buffer) {
     uint8_t sprite_line = regs->lcdc_y + 16 - sprite->pos_y;
     if (y_flip) {
       uint8_t h = obj_height_is_16_bit(regs) ? 16 : 8;
-      sprite_line = h - sprite_line;
+      sprite_line = h - sprite_line - 1;
     }
 
     uint16_t line = decode_tile_line(tile, sprite_line);
@@ -274,17 +269,6 @@ combine_lines(uint8_t *background, uint8_t *sprites, uint8_t zero_color) {
   }
 }
 
-static void draw_to_sdl_screen(SDL_Surface *surface, int ly, uint8_t *line) {
-  static const uint32_t to_sdl_color[] = {
-      0x00FFFFFF, 0x00AAAAAA, 0x00555555, 0x00000000
-  };
-  uint32_t *display = (uint32_t *) surface->pixels;
-  display += ly * 160;
-
-  for (int i = 0; i < 160; ++i)
-    display[i] = to_sdl_color[line[i]];
-}
-
 static void render_line(ppu_t *ppu) {
   uint8_t background[160];
   uint8_t sprites[160] = {0};
@@ -296,7 +280,7 @@ static void render_line(ppu_t *ppu) {
     combine_lines(background, sprites, ppu->registers->bg_palette & 3);
   }
 
-  draw_to_sdl_screen(ppu->display, ppu->registers->lcdc_y, background);
+  ppu->display->draw_line(ppu->display, background);
 }
 
 static void lcd_new_line(ppu_t *ppu) {

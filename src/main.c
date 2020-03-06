@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <getopt.h>
 
+#include <video/sdl_display.h>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_timer.h>
 
 #include "gameboy.h"
 #include "logging.h"
+
+/* Merely Another Game Boy Emulator, created by Thorbjörn Schulz */
 
 void die(const char *s) {
   fputs(s, stderr);
@@ -14,9 +17,10 @@ void die(const char *s) {
 }
 
 static struct {
-  char *file_name;
-  char *boot_rom;
-  char *save_file;
+  const char *file_name;
+  const char *boot_rom;
+  const char *save_file;
+  bool no_save;
 } set_options;
 
 static struct option options[] = {
@@ -24,10 +28,11 @@ static struct option options[] = {
     {"file",     required_argument, 0, 'f'},
     {"boot_rom", required_argument, 0, 'b'},
     {"save",     required_argument, 0, 's'},
+    {"no-save",  no_argument,       0, 'n'},
     {NULL, 0, NULL,                    0},
 };
 
-static const char *option_string = "h:f:b:s:";
+static const char *option_string = "h:f:b:s:n";
 
 static void usage(const char *program_name) {
   fprintf(stderr, "Usage: %s --file FILE [OPTIONS]\n", program_name);
@@ -36,6 +41,7 @@ static void usage(const char *program_name) {
   fprintf(stderr, "\t-f,--file FILE        Specify game file.\n");
   fprintf(stderr, "\t-b,--boot_rom FILE    Enable boot screen.\n");
   fprintf(stderr, "\t-s,--save FILE        Specify save game file.\n");
+  fprintf(stderr, "\t-n,--no-save          No save game generation.\n");
 }
 
 static int setup_options(int argc, char *argv[]) {
@@ -55,6 +61,9 @@ static int setup_options(int argc, char *argv[]) {
       case 's':
         set_options.save_file = strdup(optarg);
         break;
+      case 'n':
+        set_options.no_save = true;
+        break;
       case '?':
         return 1;
       default:
@@ -68,9 +77,9 @@ static int setup_options(int argc, char *argv[]) {
 }
 
 static void options_delete(void) {
-  free(set_options.file_name);
-  free(set_options.boot_rom);
-  free(set_options.save_file);
+  free((void *) set_options.file_name);
+  free((void *) set_options.boot_rom);
+  free((void *) set_options.save_file);
 }
 
 int main(int argc, char *argv[]) {
@@ -87,44 +96,23 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  SDL_Window *window = SDL_CreateWindow("GameBoy",
-                                        SDL_WINDOWPOS_CENTERED,
-                                        SDL_WINDOWPOS_CENTERED, 640, 576, 0);
-  atexit(SDL_Quit);
-
-  if (!window) {
-    logging_error(SDL_GetError());
-    return 1;
-  }
-
-  SDL_Surface *window_surface = SDL_GetWindowSurface(window);
-  if (!window_surface) {
-    logging_error(SDL_GetError());
-    return 1;
-  }
-
-  SDL_Surface *surface = SDL_CreateRGBSurface(
-      0, 160, 144,
-      window_surface->format->BitsPerPixel,
-      window_surface->format->Rmask,
-      window_surface->format->Gmask,
-      window_surface->format->Bmask,
-      window_surface->format->Amask);
-
-  if (!surface) {
-    logging_error(SDL_GetError());
-    return 1;
-  }
+  display_t *display = sdl_display_new();
 
   /* Ok, now that we have something to draw on, let us start the emulator */
-  gb_t gb = game_boy_new(set_options.boot_rom, surface);
+  gb_t gb = game_boy_new(set_options.boot_rom, display);
+
+  if (!set_options.no_save && !set_options.save_file) {
+    set_options.save_file = "default.save";
+    logging_warning(
+        "No save file specified, using 'default.save' as a fallback.");
+  }
+
   game_boy_insert_game(gb, set_options.file_name, set_options.save_file);
-  game_boy_run(gb, surface, window);
+  game_boy_run(gb);
 
   /* Clean everything up */
-  SDL_DestroyWindow(window);
-  SDL_FreeSurface(surface);
   game_boy_delete(gb);
+  display->delete(display);
   options_delete();
   return 0;
 }

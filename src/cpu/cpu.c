@@ -1,5 +1,6 @@
 #include "cpu.h"
 #include <memory/mmu.h>
+#include <video/ppu.h>
 #include "interrupts.h"
 
 extern void mmu_write(mmu_t *mmu, gb_address_t address, uint8_t value);

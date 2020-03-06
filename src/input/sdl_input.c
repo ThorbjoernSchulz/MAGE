@@ -1,6 +1,7 @@
-#include <stdio.h>
 #include <SDL2/SDL.h>
+#include <logging.h>
 #include "sdl_input.h"
+#include "input_device.h"
 
 static uint8_t decode_keycode(SDL_Keycode keycode) {
   uint8_t key = 0;
@@ -42,7 +43,7 @@ static uint8_t decode_keycode(SDL_Keycode keycode) {
   return key;
 }
 
-bool handle_button_press(input_t *input) {
+static bool handle_button_press(input_ctrl_t *input) {
   SDL_Event event;
 
   if (!SDL_PollEvent(&event)) return false;
@@ -51,16 +52,16 @@ bool handle_button_press(input_t *input) {
 
   switch (event.type) {
     case SDL_KEYDOWN:
-      input_press(input, key);
+      input_press(input->device, key);
       break;
 
     case SDL_KEYUP: {
-      input_unpress(input, key);
+      input_release(input->device, key);
       break;
     }
 
     case SDL_QUIT: {
-      fprintf(stderr, "Goodbye.\n");
+      logging_message("Goodbye.");
       return true;
     }
 
@@ -71,3 +72,25 @@ bool handle_button_press(input_t *input) {
   return false;
 }
 
+void sdl_joy_pad_delete(input_ctrl_t *this) {
+  input_delete(this->device);
+  free(this);
+}
+
+input_ctrl_t *sdl_joy_pad_new(mmu_t *mmu, cpu_t *interrupt_line) {
+  input_ctrl_t *controller = calloc(1, sizeof(input_ctrl_t));
+  if (!controller) {
+    logging_std_error();
+    return 0;
+  }
+
+  controller->handle_button_press = handle_button_press;
+  controller->delete = sdl_joy_pad_delete;
+  controller->device = input_new(interrupt_line, mmu);
+  if (!controller->device) {
+    free(controller);
+    return 0;
+  }
+
+  return controller;
+}

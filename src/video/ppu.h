@@ -5,10 +5,10 @@
 
 typedef struct pixel_processing_unit ppu_t;
 typedef struct cpu cpu_t;
-typedef struct SDL_Surface *surface;
+typedef struct display display_t;
 
 ppu_t *ppu_new(mmu_t *mmu, cpu_t *interrupt_line, uint8_t *vram,
-               SDL_Surface *surface);
+               display_t *display);
 
 void ppu_delete(ppu_t *ppu);
 
