@@ -4,6 +4,7 @@
 #include <getopt.h>
 
 #include <video/sdl_display.h>
+#include <video/ascii_display.h>
 #include <SDL2/SDL.h>
 
 #include "gameboy.h"
