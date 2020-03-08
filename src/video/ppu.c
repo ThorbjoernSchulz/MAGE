@@ -31,6 +31,11 @@ typedef struct ppu_memory_handler {
   ppu_t *ppu;
 } ppu_mem_handler_t;
 
+typedef struct vram_handler {
+  mem_handler_t base;
+  uint8_t *video_ram;
+} vram_handler_t;
+
 typedef struct pixel_processing_unit {
   uint8_t *vram;
   oam_entry_t *oam;
@@ -47,6 +52,7 @@ typedef struct pixel_processing_unit {
   uint16_t scan_line_counter;
 
   ppu_mem_handler_t handler;
+  vram_handler_t vram_handler;
 } ppu_t;
 
 DEF_MEM_READ(ppu_read) {
@@ -113,6 +119,16 @@ DEF_MEM_WRITE(ppu_write) {
   start[address - 0xFF40] = value;
 }
 
+static DEF_MEM_WRITE(vram_write) {
+  vram_handler_t *handler = (vram_handler_t *) this;
+  handler->video_ram[address & ~(0xE000)] = value;
+}
+
+static DEF_MEM_READ(vram_read) {
+  vram_handler_t *handler = (vram_handler_t *) this;
+  return handler->video_ram[address & ~(0xE000)];
+}
+
 static void reset_beam(ppu_t *ppu) {
   ppu->beam_position = reset_iterator(ppu->registers, ppu->vram);
 }
@@ -132,6 +148,7 @@ ppu_t *ppu_new(mmu_t *mmu, cpu_t *interrupt_line, uint8_t *vram,
   ppu->handler.base.destroy = mem_handler_stack_destroy;
   ppu->handler.ppu = ppu;
 
+
   mem_tuple_t tuple = mmu_map_memory(mmu, OAM_BASE, OAM_BASE + 160);
   ppu->oam = (oam_entry_t *) tuple.memory;
   mmu_register_mem_handler(mmu, (mem_handler_t *) &ppu->handler, tuple.handle);
@@ -139,6 +156,13 @@ ppu_t *ppu_new(mmu_t *mmu, cpu_t *interrupt_line, uint8_t *vram,
   tuple = mmu_map_memory(mmu, REG_BASE, REG_BASE + sizeof(ppu_regs_t) - 1);
   ppu->registers = (ppu_regs_t *) tuple.memory;
   mmu_register_mem_handler(mmu, (mem_handler_t *) &ppu->handler, tuple.handle);
+
+  ppu->vram_handler.video_ram = vram;
+  ppu->vram_handler.base.write = vram_write;
+  ppu->vram_handler.base.read = vram_read;
+  ppu->vram_handler.base.destroy = mem_handler_stack_destroy;
+
+  mmu_assign_vram_handler(mmu, (mem_handler_t *)&ppu->vram_handler);
 
   ppu->vram = vram;
   ppu->display = display;

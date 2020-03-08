@@ -15,12 +15,11 @@
 #include "gameboy.h"
 #include "cartridge.h"
 
-input_ctrl_t *input_ctrl_impl_new(cpu_t *interrupt_line , mmu_t *mmu);
-void input_ctrl_impl_delete(input_ctrl_t *input);
+extern input_ctrl_t *input_ctrl_impl_new(cpu_t *interrupt_line, mmu_t *mmu);
 
-void die(const char *s);
+extern void input_ctrl_impl_delete(input_ctrl_t *input);
 
-void set_up_vram(cpu_t *cpu, uint8_t *vram);
+extern void die(const char *s);
 
 static bool set_up_boot_rom(const char *boot_file);
 
@@ -35,10 +34,6 @@ static DEF_MEM_READ(null_read) { return 0; }
 static mem_handler_t *null_handler_create(void) {
   return mem_handler_create(null_read, default_rom_write);
 }
-
-/* # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
- *     GAME BOY
- * # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # */
 
 typedef struct game_boy_t {
   cpu_t cpu;
@@ -83,10 +78,7 @@ gb_t game_boy_new(const char *boot_file, display_t *display,
     return 0;
   }
   game_boy->joy_pad = input_strategy;
-
   game_boy->display = display;
-
-  set_up_vram(&game_boy->cpu, game_boy->vram);
 
   if (boot_file && set_up_boot_rom(boot_file))
     enable_boot_rom(mmu);
@@ -243,40 +235,3 @@ static void wait_until_next_frame(double time_spent) {
   time_spent = fmax((1.0 / frame_rate) - time_spent, 0);
   usleep((useconds_t) (time_spent * 1000000));
 }
-
-/* # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
- *     VRAM
- * # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # */
-
-typedef struct vram_handler {
-  mem_handler_t base;
-  uint8_t *video_ram;
-} vram_handler_t;
-
-static DEF_MEM_WRITE(vram_write) {
-  vram_handler_t *handler = (vram_handler_t *) this;
-  handler->video_ram[address & ~(0xE000)] = value;
-}
-
-static DEF_MEM_READ(vram_read) {
-  vram_handler_t *handler = (vram_handler_t *) this;
-  return handler->video_ram[address & ~(0xE000)];
-}
-
-mem_handler_t *vram_handler_create(uint8_t *vram) {
-  vram_handler_t *handler = calloc(1, (sizeof(vram_handler_t)));
-  if (!handler) return 0;
-
-  handler->base.write = vram_write;
-  handler->base.read = vram_read;
-  handler->base.destroy = mem_handler_default_destroy;
-  handler->video_ram = vram;
-  return (mem_handler_t *) handler;
-}
-
-void set_up_vram(cpu_t *cpu, uint8_t *vram) {
-  mem_handler_t *handler = vram_handler_create(vram);
-  if (!handler) die("Could not allocate video_ram memory");
-  mmu_assign_vram_handler(cpu->mmu, handler);
-}
-

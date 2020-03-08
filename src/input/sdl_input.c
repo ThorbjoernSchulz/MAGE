@@ -74,7 +74,6 @@ static bool handle_button_press(input_strategy_t *this) {
 }
 
 void sdl_joy_pad_delete(input_strategy_t *this) {
-  /* TODO came back to this */
   free(this);
 }
 
