@@ -201,6 +201,11 @@ void game_boy_run(gb_t gb) {
   /* start the main loop */
   clock_t start_t = clock();
 
+#ifdef DEBUG
+  clock_t fps_t = start_t;
+  uint32_t num_frames = 0;
+#endif
+
   while (true) {
     uint8_t cycles_spent = update_cpu_state(&gb->cpu, debugger);
 
@@ -216,7 +221,20 @@ void game_boy_run(gb_t gb) {
     gb->display->show(gb->display);
 
     wait_until_next_frame((double) (clock() - start_t) / CLOCKS_PER_SEC);
-    start_t = clock();
+
+    clock_t now = clock();
+
+#ifdef DEBUG
+    ++num_frames;
+    double time_passed = (now - fps_t) / CLOCKS_PER_SEC;
+    if (time_passed > 0.25 && num_frames > 10) {
+      fprintf(stderr, "FPS: %d\n", (int)((double)num_frames / time_passed));
+      num_frames = 0;
+      fps_t = now;
+    }
+#endif
+
+    start_t = now;
   }
 }
 

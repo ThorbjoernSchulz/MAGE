@@ -27,16 +27,16 @@ typedef struct camera_iterator {
 
 typedef px_data_t *(*find_tile_t)(uint8_t, px_data_t *);
 
-px_data_t *find_tile_unsigned(uint8_t tile_id, px_data_t *tiles);
+px_data_t *find_tile_unsigned(uint8_t tile_id, px_data_t *const tiles);
 
-px_data_t *find_tile_signed(uint8_t tile_id, px_data_t *tiles);
+px_data_t *find_tile_signed(uint8_t tile_id, px_data_t *const tiles);
 
-uint8_t next_pixel(camera_iterator_t *it, find_tile_t find_tile,
-                   uint8_t *palette);
+uint8_t next_pixel(camera_iterator_t *const it, find_tile_t find_tile,
+                   uint8_t *const palette);
 
-camera_iterator_t reset_iterator(ppu_regs_t *regs, uint8_t *vram);
+camera_iterator_t reset_iterator(ppu_regs_t *const regs, uint8_t *const vram);
 
-void update_scrolling(camera_iterator_t *it, ppu_regs_t *regs);
+void update_scrolling(camera_iterator_t *const it, ppu_regs_t *regs);
 
-uint16_t decode_tile_line(px_data_t *tile, int line);
+uint16_t decode_tile_line(px_data_t *const tile, int line);
 uint16_t flip_line(uint16_t line);

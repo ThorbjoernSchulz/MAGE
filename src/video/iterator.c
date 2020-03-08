@@ -49,8 +49,8 @@ static uint8_t get_tile_id_from_pixel(uint8_t *display, int px_x, int px_y);
 
 static void next_screen_pixel(camera_iterator_t *it);
 
-uint8_t next_pixel(camera_iterator_t *it, find_tile_t find_tile,
-                   uint8_t *palette) {
+uint8_t next_pixel(camera_iterator_t *const it, find_tile_t find_tile,
+                   uint8_t *const palette) {
   int display_pixel_x, display_pixel_y;
   uint8_t *display;
 
@@ -91,15 +91,15 @@ static uint8_t get_tile_id_from_pixel(uint8_t *display, int px_x, int px_y) {
   return *(display + y * 32 + x);
 }
 
-px_data_t *find_tile_unsigned(uint8_t tile_id, px_data_t *tiles) {
+px_data_t *find_tile_unsigned(uint8_t tile_id, px_data_t *const tiles) {
   return tiles + tile_id;
 }
 
-px_data_t *find_tile_signed(uint8_t tile_id, px_data_t *tiles) {
+px_data_t *find_tile_signed(uint8_t tile_id, px_data_t *const tiles) {
   return tiles + 128 + (int8_t) tile_id;
 }
 
-uint16_t decode_tile_line(px_data_t *tile, int line) {
+uint16_t decode_tile_line(px_data_t *const tile, int line) {
   return (decoder[tile->data[2 * line]] << 1) |
          decoder[tile->data[2 * line + 1]];
 }
@@ -111,7 +111,7 @@ static void next_screen_pixel(camera_iterator_t *it) {
   }
 }
 
-camera_iterator_t reset_iterator(ppu_regs_t *regs, uint8_t *vram) {
+camera_iterator_t reset_iterator(ppu_regs_t *const regs, uint8_t *const vram) {
   assert(vram);
 
   /* calculate where the tile ids are stored */
@@ -138,7 +138,7 @@ camera_iterator_t reset_iterator(ppu_regs_t *regs, uint8_t *vram) {
   return it;
 }
 
-void update_scrolling(camera_iterator_t *it, ppu_regs_t *regs) {
+void update_scrolling(camera_iterator_t *const it, ppu_regs_t *regs) {
   /* update scroll-values */
   it->scroll_y = regs->scroll_y;
   it->scroll_x = regs->scroll_x;
