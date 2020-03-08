@@ -5,8 +5,10 @@
 struct game_boy_t;
 typedef struct game_boy_t *gb_t;
 typedef struct display display_t;
+typedef struct input_strategy input_strategy_t;
 
-gb_t game_boy_new(const char *boot_file, display_t *display);
+gb_t game_boy_new(const char *boot_file, display_t *display,
+                  input_strategy_t *strategy);
 
 void game_boy_delete(gb_t gb);
 

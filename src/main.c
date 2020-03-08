@@ -3,9 +3,9 @@
 #include <string.h>
 #include <getopt.h>
 
-#include <video/sdl_display.h>
-#include <video/ascii_display.h>
 #include <SDL2/SDL.h>
+#include <video/sdl_display.h>
+#include <input/sdl_input.h>
 
 #include "gameboy.h"
 #include "logging.h"
@@ -98,9 +98,10 @@ int main(int argc, char *argv[]) {
   }
 
   display_t *display = sdl_display_new();
+  input_strategy_t *joy_pad = sdl_joy_pad_new();
 
   /* Ok, now that we have something to draw on, let us start the emulator */
-  gb_t gb = game_boy_new(set_options.boot_rom, display);
+  gb_t gb = game_boy_new(set_options.boot_rom, display, joy_pad);
 
   if (!set_options.no_save && !set_options.save_file) {
     set_options.save_file = "default.save";

@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-typedef struct mmu_t mmu_t;
+typedef struct memory_management_unit mmu_t;
 
 typedef uint16_t gb_address_t;
 typedef struct memory_handler mem_handler_t;

@@ -3,7 +3,7 @@
 #include <memory/memory_handler.h>
 
 typedef struct cpu cpu_t;
-typedef struct mmu_t mmu_t;
+typedef struct memory_management_unit mmu_t;
 typedef struct timer cpu_timer_t;
 typedef struct timer_registers timer_regs_t;
 

@@ -1,7 +1,7 @@
 #include <SDL2/SDL.h>
 #include <logging.h>
-#include "sdl_input.h"
-#include "input_device.h"
+#include <assert.h>
+#include "input_strategy.h"
 
 static uint8_t decode_keycode(SDL_Keycode keycode) {
   uint8_t key = 0;
@@ -43,7 +43,8 @@ static uint8_t decode_keycode(SDL_Keycode keycode) {
   return key;
 }
 
-static bool handle_button_press(input_ctrl_t *input) {
+static bool handle_button_press(input_strategy_t *this) {
+  assert(this->controller);
   SDL_Event event;
 
   if (!SDL_PollEvent(&event)) return false;
@@ -52,11 +53,11 @@ static bool handle_button_press(input_ctrl_t *input) {
 
   switch (event.type) {
     case SDL_KEYDOWN:
-      input_press(input->device, key);
+      this->controller->press(this->controller, key);
       break;
 
     case SDL_KEYUP: {
-      input_release(input->device, key);
+      this->controller->release(this->controller, key);
       break;
     }
 
@@ -72,25 +73,20 @@ static bool handle_button_press(input_ctrl_t *input) {
   return false;
 }
 
-void sdl_joy_pad_delete(input_ctrl_t *this) {
-  input_delete(this->device);
+void sdl_joy_pad_delete(input_strategy_t *this) {
+  /* TODO came back to this */
   free(this);
 }
 
-input_ctrl_t *sdl_joy_pad_new(mmu_t *mmu, cpu_t *interrupt_line) {
-  input_ctrl_t *controller = calloc(1, sizeof(input_ctrl_t));
-  if (!controller) {
+input_strategy_t *sdl_joy_pad_new(void) {
+  input_strategy_t *strategy = calloc(1, sizeof(input_strategy_t));
+  if (!strategy) {
     logging_std_error();
     return 0;
   }
 
-  controller->handle_button_press = handle_button_press;
-  controller->delete = sdl_joy_pad_delete;
-  controller->device = input_new(interrupt_line, mmu);
-  if (!controller->device) {
-    free(controller);
-    return 0;
-  }
+  strategy->handle_button_press = handle_button_press;
+  strategy->delete = sdl_joy_pad_delete;
 
-  return controller;
+  return strategy;
 }

@@ -9,11 +9,14 @@
 #include <memory/memory_handler.h>
 #include <video/ppu.h>
 #include <video/display.h>
-#include <input/sdl_input.h>
+
+#include <input/input_strategy.h>
 
 #include "gameboy.h"
 #include "cartridge.h"
 
+input_ctrl_t *input_ctrl_impl_new(cpu_t *interrupt_line , mmu_t *mmu);
+void input_ctrl_impl_delete(input_ctrl_t *input);
 
 void die(const char *s);
 
@@ -39,7 +42,7 @@ static mem_handler_t *null_handler_create(void) {
 
 typedef struct game_boy_t {
   cpu_t cpu;
-  input_ctrl_t *joy_pad;
+  input_strategy_t *joy_pad;
   cartridge_t *cartridge;
   display_t *display;
 
@@ -53,7 +56,8 @@ typedef struct game_boy_t {
  *                  runs. The boot file has to contain 256 bytes of code.
  * .surface         The structure the LCD content is drawn on.
  */
-gb_t game_boy_new(const char *boot_file, display_t *display) {
+gb_t game_boy_new(const char *boot_file, display_t *display,
+                  input_strategy_t *input_strategy) {
   game_boy_t *game_boy = calloc(1, sizeof(game_boy_t));
   if (!game_boy) return 0;
 
@@ -72,12 +76,13 @@ gb_t game_boy_new(const char *boot_file, display_t *display) {
 
   cpu_init(&game_boy->cpu, mmu, ppu);
 
-  input_ctrl_t *input = sdl_joy_pad_new(mmu, &game_boy->cpu);
-  if (!input) {
+  input_strategy->controller = input_ctrl_impl_new(&game_boy->cpu, mmu);
+
+  if (!input_strategy->controller) {
     cpu_delete(&game_boy->cpu);
     return 0;
   }
-  game_boy->joy_pad = input;
+  game_boy->joy_pad = input_strategy;
 
   game_boy->display = display;
 
@@ -89,6 +94,14 @@ gb_t game_boy_new(const char *boot_file, display_t *display) {
     game_boy_entry_after_boot(game_boy);
 
   return game_boy;
+}
+
+void game_boy_delete(gb_t gb) {
+  cpu_delete(&(gb->cpu));
+  input_ctrl_impl_delete(gb->joy_pad->controller);
+  gb->joy_pad->delete(gb->joy_pad);
+  cartridge_delete(gb->cartridge);
+  free(gb);
 }
 
 /*
@@ -211,13 +224,6 @@ static void wait_until_next_frame(double time_spent) {
   static const unsigned frame_rate = 60;
   time_spent = fmax((1.0 / frame_rate) - time_spent, 0);
   usleep((useconds_t) (time_spent * 1000000));
-}
-
-void game_boy_delete(gb_t gb) {
-  cpu_delete(&(gb->cpu));
-  gb->joy_pad->delete(gb->joy_pad);
-  cartridge_delete(gb->cartridge);
-  free(gb);
 }
 
 /* # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

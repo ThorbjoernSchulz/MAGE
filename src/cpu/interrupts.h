@@ -5,7 +5,7 @@
 #include <memory/memory_handler.h>
 
 typedef struct cpu cpu_t;
-typedef struct mmu_t mmu_t;
+typedef struct memory_management_unit mmu_t;
 typedef struct interrupt_registers interrupt_regs_t;
 typedef struct interrupt_controller interrupt_controller_t;
 

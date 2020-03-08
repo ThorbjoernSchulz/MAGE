@@ -8,7 +8,7 @@
 
 typedef struct debugger debugger_t;
 
-typedef struct mmu_t mmu_t;
+typedef struct memory_management_unit mmu_t;
 typedef struct pixel_processing_unit ppu_t;
 typedef uint16_t gb_address_t;
 

@@ -46,7 +46,7 @@ struct __memory_handling {
   mem_handler_t *memory_handlers[MMU_MAX_HANDLE];
 };
 
-typedef struct mmu_t {
+typedef struct memory_management_unit {
   uint8_t internal_ram[8 * 1024];
   uint8_t high_memory[512];
 
