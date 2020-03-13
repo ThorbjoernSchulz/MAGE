@@ -49,7 +49,7 @@ static bool handle_button_press(input_strategy_t *this) {
 
   if (!SDL_PollEvent(&event)) return false;
 
-  uint8_t key = decode_keycode(event.key.keysym.sym);
+  input_button_t key = decode_keycode(event.key.keysym.sym);
 
   switch (event.type) {
     case SDL_KEYDOWN:

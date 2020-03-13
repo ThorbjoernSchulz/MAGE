@@ -1,15 +1,18 @@
 #pragma once
+
 #include <stdbool.h>
 #include <stdint.h>
 
-#define GAME_BOY_START  0x80
-#define GAME_BOY_SELECT 0x40
-#define GAME_BOY_B      0x20
-#define GAME_BOY_A      0x10
-#define GAME_BOY_DOWN   0x8
-#define GAME_BOY_UP     0x4
-#define GAME_BOY_LEFT   0x2
-#define GAME_BOY_RIGHT  0x1
+typedef enum {
+  GAME_BOY_RIGHT  = 1,
+  GAME_BOY_LEFT   = 2,
+  GAME_BOY_UP     = 4,
+  GAME_BOY_DOWN   = 8,
+  GAME_BOY_A      = 16,
+  GAME_BOY_B      = 32,
+  GAME_BOY_SELECT = 64,
+  GAME_BOY_START  = 128,
+} input_button_t;
 
 typedef struct input_controller input_ctrl_t;
 typedef struct input_controller {

@@ -1,0 +1,12 @@
+#ifdef CTRL_PROTOCOL_INPUT
+CTRL_GAME_BOY_RIGHT     =    0,
+CTRL_GAME_BOY_LEFT      =    1,
+CTRL_GAME_BOY_UP        =    2,
+CTRL_GAME_BOY_DOWN      =    3,
+CTRL_GAME_BOY_A         =    4,
+CTRL_GAME_BOY_B         =    5,
+CTRL_GAME_BOY_SELECT    =    6,
+CTRL_GAME_BOY_START     =    7,
+CTRL_GAME_BOY_QUIT      =    8,
+#endif
+

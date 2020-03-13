@@ -98,7 +98,15 @@ int main(int argc, char *argv[]) {
   }
 
   display_t *display = sdl_display_new();
+  if (!display) {
+    logging_error("Display could not be created.");
+    return 1;
+  }
   input_strategy_t *joy_pad = sdl_joy_pad_new();
+  if (!joy_pad) {
+    logging_error("Joy-pad could not be created.");
+    return 1;
+  }
 
   /* Ok, now that we have something to draw on, let us start the emulator */
   gb_t gb = game_boy_new(set_options.boot_rom, display, joy_pad);
